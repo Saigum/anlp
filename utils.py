@@ -37,8 +37,8 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         pad_masks[pad_idx:,:] = -1e9
         return pad_masks
     def __getitem__(self, index):
-        en_tokens = torch.tensor(self.tokenizer(self.english_corpus[index],padding="max_length",max_length=self.context_len)["input_ids"])
-        finnish_tokens = torch.tensor(self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len)["input_ids"])
+        en_tokens = torch.tensor(self.tokenizer(self.english_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
+        finnish_tokens = torch.tensor(self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
         en_pad_indices = torch.where(en_tokens==self.tokenizer.pad_token_id)[0]
         en_pad_index = en_pad_indices[0] if len(en_pad_indices) >0 else self.context_len
         fin_pad_indices = torch.where(finnish_tokens == self.tokenizer.pad_token_id)[0]
@@ -87,8 +87,9 @@ class EnFinDataModule(lightning.LightningDataModule):
     def train_dataloader(self):
         return DataLoader(self.train_ds,batch_size=self.config.batch_size)
     def val_dataloader(self):
-        return DataLoader(self.train_ds,batch_size=self.config.batch_size)
-    
+        return DataLoader(self.val_ds,batch_size=self.config.batch_size)
+    def test_dataloader(self):
+        return DataLoader(self.test_ds,batch_size=self.config.batch_size)
     
 ####################################################################################
 ################    POSITIONAL EMBEDDINGS  #########################################
