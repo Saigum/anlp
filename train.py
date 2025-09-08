@@ -135,6 +135,7 @@ def train(args):
         logger= wandb_logger,   
         callbacks=[early_stopping,model_checkpoint],
         log_every_n_steps=10,
+        
         # track_grad_norm=2,       
     )
     trainer.fit(model=TransformerModel,
