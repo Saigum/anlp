@@ -1,6 +1,6 @@
 from attention import *
 import torch
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from utils import PositionalEncodings
 from torch import nn
 from utils import *
@@ -15,7 +15,15 @@ class EncoderConfig:
       vocab_size:int=50762
       embedding_size:int=768
       max_seq_len:int=200 ## same thing as num_tokens or context_len
-      atn_cfg:attnconfig=attnconfig(query_dim=embedding_size,key_dim=embedding_size,value_dim=embedding_size,model_dim=embedding_size,n_heads=num_heads)
+      atn_cfg: attnconfig = field(
+        default_factory=lambda: attnconfig(
+            query_dim=256,
+            key_dim=256,
+            value_dim=256,
+            model_dim=256,
+            n_heads=8
+        )
+    )
       pos_weight:int=0.2
       mlp_depth:int=1
       attn_class:AttnVariant=AttnVariant.SLOW_MULTIHEADED
