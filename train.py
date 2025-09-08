@@ -125,7 +125,7 @@ def train(args):
     
     wandb_logger = WandbLogger(
         project="eng-fin-transformer",
-        log_model="all",
+        log_model=False,
         name=f"run-{args.model_dim}d-{args.n_blocks}b-{args.num_heads}h" # Optional: A nice name for the run
     )
     trainer = Trainer(
@@ -162,7 +162,8 @@ if __name__ == "__main__":
     parser.add_argument('--devices', type=int, default=1, help='Number of devices (GPUs/CPUs) to use.')
     parser.add_argument('--num_nodes', type=int, default=1, help='Number of nodes for distributed training.')
     parser.add_argument('--train_test', type=float, default=0.8, help='Proportion of data for the training set.')
-    parser.add_argument('--train_val', type=float, default=0.9, help='Proportion of the training set to use for validation.')
+    parser.add_argument('--train_val', type=float, default=0.8, help='Proportion of the training set to use for validation.')
+    
 
     args = parser.parse_args()
     train(args)
