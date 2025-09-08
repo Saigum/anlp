@@ -165,7 +165,6 @@ def test_encoder_block_integration_output_shape(posn_class_variant: int):
         mlp_depth=2,
         attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
         posn_class=PositionalVariant(posn_class_variant),
-        device=DEVICE
         
     )
     
@@ -226,7 +225,6 @@ def test_encoder_decoder_block_integration_output(posn_class_variant: int):
         atn_cfg=attnconfig(MODEL_DIM, MODEL_DIM, MODEL_DIM, MODEL_DIM, NUM_HEADS, False, CONTEXT_LEN),
         attn_class=AttnVariant.FAST_MULTIHEADED,
         posn_class=PositionalVariant(posn_class_variant),
-        device=DEVICE
     )
     encoder_cfg = EncoderConfig(
         num_heads=4,
@@ -238,7 +236,6 @@ def test_encoder_decoder_block_integration_output(posn_class_variant: int):
         mlp_depth=2,
         attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
         posn_class=PositionalVariant(posn_class_variant),
-        device=DEVICE
     )
     
     encoder = TransformerEncoder(encoder_cfg,n_blocks=1).to(DEVICE)

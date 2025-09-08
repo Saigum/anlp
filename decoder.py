@@ -9,7 +9,6 @@ from utils import PositionalVariant
 from typing import Optional
 from torch import Tensor
 from attention import AttnVariant
-from torch.cuda import device as Device
 @dataclass 
 class DecoderConfig:
     num_heads:int=4
@@ -21,13 +20,12 @@ class DecoderConfig:
     mlp_depth:int=1
     attn_class:AttnVariant=AttnVariant.SLOW_MULTIHEADED
     posn_class:PositionalVariant=PositionalVariant.ROPE
-    device:Device=torch.device("cpu")
-        
+
 class TransformerDecoderBlock(nn.Module):
     def __init__(self,config:DecoderConfig):
         super().__init__()
         # self.Embedding = nn.Embedding(config.vocab_size,config.embedding_size)
-        self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len,config.device)
+        self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len)
         config.atn_cfg.causal_mask = True
         # if config.atn_cfg.model_dim != config.embedding_size:
         #     self.attn_head = nn.Sequential(make_attention(attn_class=config.attn_class,atn_config=config.atn_cfg),

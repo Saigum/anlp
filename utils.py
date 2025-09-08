@@ -11,6 +11,8 @@ from transformers import GPT2Tokenizer
 from dataclasses import dataclass
 from torch.utils.data import DataChunk
 from enum import Enum
+from torch.utils.data import random_split
+from torch import Generator
 
 
 class EnFinnishDataset(torch.utils.data.Dataset):
@@ -21,7 +23,10 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         with open(os.path.join(archive_path,"EUbookshop.fi")) as fp:
             self.finnish_corpus = fp.readlines()
         self.tokenizer = GPT2Tokenizer.from_pretrained("openai-community/gpt2")
-        self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        self.tokenizer.add_special_tokens({'pad_token': '<pad>',"bos_token": "<bos>"})        
+        print("PAD token:", self.tokenizer.pad_token, self.tokenizer.pad_token_id)
+        print("EOS token:", self.tokenizer.eos_token, self.tokenizer.eos_token_id)
+        print("BOS token:", self.tokenizer.bos_token, self.tokenizer.bos_token_id)
         self.context_len = context_len
         print(self.tokenizer.pad_token)      
         print(self.tokenizer.pad_token_id)     
@@ -34,8 +39,10 @@ class EnFinnishDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         en_tokens = torch.tensor(self.tokenizer(self.english_corpus[index],padding="max_length",max_length=self.context_len)["input_ids"])
         finnish_tokens = torch.tensor(self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len)["input_ids"])
-        en_pad_index = torch.where(en_tokens==self.tokenizer.pad_token_id)[0][0]
-        fin_pad_index = torch.where(finnish_tokens == self.tokenizer.pad_token_id)[0][0]
+        en_pad_indices = torch.where(en_tokens==self.tokenizer.pad_token_id)[0]
+        en_pad_index = en_pad_indices[0] if len(en_pad_indices) >0 else self.context_len
+        fin_pad_indices = torch.where(finnish_tokens == self.tokenizer.pad_token_id)[0]
+        fin_pad_index = fin_pad_indices[0] if len(fin_pad_indices) >0 else self.context_len
         en_pad_masks = self.return_masks(en_pad_index)
         fin_pad_masks = self.return_masks(fin_pad_index)
         # en_pad_masks = torch.concat([torch.full((en_pad_index,),fill_value=0),torch.full((self.context_len-en_pad_index,),-torch.inf)])
@@ -60,9 +67,23 @@ class EnFinDataModule(lightning.LightningDataModule):
                  config:DataModuleConfig):
         super().__init__()
         self.config = config
-    def setup(self, stage):
-        FullDataset = EnFinnishDataset(self.config.archive_path)
-        self.train_ds,self.valds = random_split(FullDataset,lengths=[self.config.train_test*len(FullDataset),(1-self.config.train_test)*len(FullDataset)])
+
+    def setup(self, stage: str):
+        if not hasattr(self, 'FullDataset'):
+            self.FullDataset = EnFinnishDataset(self.config.archive_path,context_len=self.config.context_len)
+        if not hasattr(self, 'train_ds'):
+            full_len = len(self.FullDataset)
+            train_len = int(self.config.train_test * full_len)
+            test_len = full_len - train_len
+            val_len = int((1-self.config.train_val) * train_len)
+            train_len = train_len - val_len
+            print(f"Dataset lengths: Train={train_len}, Val={val_len}, Test={test_len}")
+            generator = Generator().manual_seed(42)
+            self.train_ds, self.val_ds, self.test_ds = random_split(
+                self.FullDataset,
+                [train_len, val_len, test_len],
+                generator=generator
+            )
     def train_dataloader(self):
         return DataLoader(self.train_ds,batch_size=self.config.batch_size)
     def val_dataloader(self):
@@ -85,16 +106,16 @@ class PositionalEncodings(nn.Module):
 
 
 class RoPE(nn.Module):
-    def __init__(self, embedding_dim:int,context_len:int,device="cpu"):
+    def __init__(self, embedding_dim:int,context_len:int):
         super().__init__( )
         self.d = embedding_dim
         thetas = torch.arange(start=0,end=context_len,step=1,dtype=torch.float).view(-1,1) @torch.pow(1e5,-2*torch.arange(start=0,end=self.d-1,step=2)/self.d).repeat_interleave(2).view(1,-1)
         ## this should be an context_len x d size matrix 
         # print(f"Shape of theta matrix is : {thetas.shape}")
-        self.costhetas  = torch.cos(thetas).to(device)
-        self.sinethetas = torch.sin(thetas).to(device)
-        self.even_idx = torch.arange(start=0,end=self.d,step=2,dtype=torch.int).to(device)
-        self.odd_idx = torch.arange(start=1,end=self.d,step=2,dtype=torch.int).to(device)
+        self.register_buffer('costhetas', torch.cos(thetas))
+        self.register_buffer('sinethetas', torch.sin(thetas))
+        self.register_buffer('even_idx', torch.arange(start=0, end=self.d, step=2, dtype=torch.long))
+        self.register_buffer('odd_idx', torch.arange(start=1, end=self.d, step=2, dtype=torch.long))
 
     def interswap(self,token_embedding):
         odds =  token_embedding[...,self.odd_idx]

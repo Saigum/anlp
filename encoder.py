@@ -7,7 +7,6 @@ from utils import *
 from enum import Enum
 from tqdm import tqdm
 from utils import PositionalVariant
-from torch.cuda import device as Device
 
 
 @dataclass
@@ -21,11 +20,10 @@ class EncoderConfig:
       mlp_depth:int=1
       attn_class:AttnVariant=AttnVariant.SLOW_MULTIHEADED
       posn_class:PositionalVariant=PositionalVariant.ROPE
-      device:Device=torch.device("cpu")
 
-def make_positional_embeddings(posn_class:PositionalVariant,embedding_size:int,max_seq_len:int,device="cpu"):
+def make_positional_embeddings(posn_class:PositionalVariant,embedding_size:int,max_seq_len:int):
     if posn_class == PositionalVariant.ROPE:
-        return RoPE(embedding_dim=embedding_size,context_len=max_seq_len,device=device)
+        return RoPE(embedding_dim=embedding_size,context_len=max_seq_len)
     elif posn_class == PositionalVariant.RELATIVEPE:
         return RelativePE(embedding_dim=embedding_size,context_len=max_seq_len)
     else:
@@ -38,7 +36,8 @@ class TransformerEncoderBlock(nn.Module):
     def __init__(self,config:EncoderConfig):
         super().__init__()
         # self.Embedding = nn.Embedding(config.vocab_size,config.embedding_size)
-        self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len,config.device)
+        # print(f"Received Max Seq Len: {config.max_seq_len}")
+        self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len)
         
         # if config.atn_cfg.model_dim != config.embedding_size:
         #     self.attn_head = nn.Sequential(make_attention(attn_class=config.attn_class,atn_config=config.atn_cfg),
