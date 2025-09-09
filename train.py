@@ -181,6 +181,7 @@ def train(args):
         attn_class=AttnVariant.FAST_MULTIHEADED,
         # posn_class=PositionalVariant(1),
         mlp_depth=2,
+        post_pre_norm=args.post_pre_norm
     )
     encoder_cfg = EncoderConfig(
         num_heads=4,
@@ -194,7 +195,7 @@ def train(args):
         mlp_depth=2,
         attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
         # posn_class=PositionalVariant(1),
-        
+        post_pre_norm=args.post_pre_norm
     )
     transformer_cfg = TransformerConfig(
         n_blocks=args.n_blocks,
@@ -253,6 +254,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_heads', type=int, default=8, help='Number of attention heads.')
     parser.add_argument('--posn_class', type=int,default=1,help="1: RoPE, 2: RelativePE")
     parser.add_argument('--posn_weight',type=float,default=0.2,help="Weight of Positional Embedding to QKV matrices")
+    parser.add_argument('--post_pre_norm',type=int,default=0,help="Argument to switch between pre and post normalization.")
 
     # Training arguments
     parser.add_argument('--batch_size', type=int, default=8, help='Training batch size.')

@@ -274,7 +274,9 @@ class RelativePEMHA(nn.Module):
         Ks = Ks.reshape(Ks.shape[0],n_heads,Ks.shape[1],self.config.model_dim//n_heads)
         Vs = Vs.reshape(Vs.shape[0],n_heads,Vs.shape[1],self.config.model_dim//n_heads)
        ####positional embeddings#############
-        Srel = torch.matmul(Qs,self.R[torch.arange(start=-Qs.shape[2],end=Qs.shape[0])])
+        Srel = torch.matmul(Qs,self.R[torch.arange(start=-Qs.shape[2],end=Qs.shape[0])]) ## this is of shape num_tokens,2*num_tokens-1
+        
+        
         #################################
         As = torch.matmul(Qs,Ks.mT)/np.sqrt(Qs.shape[-1])
         if padding_mask is not None:

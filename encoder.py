@@ -26,6 +26,7 @@ class EncoderConfig:
     #   pos_weight:int=0.2
       mlp_depth:int=1
       attn_class:AttnVariant=AttnVariant.SLOW_MULTIHEADED
+      post_pre_norm:int=1
     #   posn_class:PositionalVariant=PositionalVariant.ROPE
 
 
@@ -45,8 +46,10 @@ class TransformerEncoderBlock(nn.Module):
         # else:
         self.attn_head = make_attention(attn_class=config.attn_class,atn_config=config.atn_cfg)
         self.layer_norm1 = nn.LayerNorm(config.embedding_size)
-        self.res1 = ResMLP(input_size=config.embedding_size,num_layers=config.mlp_depth)
-        # self.mlp = nn.Sequential(*[nn.Sequential(nn.Linear(config.embedding_size,config.embedding_size),nn.GELU(),nn.Dropout(p=0.2)) for _ in range(config.mlp_depth)])
+        if self.encodercfg.post_pre_norm == 0:
+            self.res1 = ResMLP(input_size=config.embedding_size,num_layers=config.mlp_depth)
+        else:
+            self.res1 = nn.Sequential(*[nn.Sequential(nn.Linear(config.embedding_size,config.embedding_size),nn.GELU(),nn.Dropout(p=0.2)) for _ in range(config.mlp_depth)])
         self.layer_norm2 = nn.LayerNorm(config.embedding_size)
         self.encodercfg = config
     
@@ -56,14 +59,16 @@ class TransformerEncoderBlock(nn.Module):
         # embs = embs + self.encodercfg.pos_weight*pos_embs
         
         ########### POST NORMALIZATION #######################################
-        embs = self.layer_norm1(self.attn_head(embs,embs,embs,pad_mask) + embs)
-        embs = self.layer_norm2(self.res1(embs))
+        if self.encodercfg.post_pre_norm == 0:
+            embs = self.layer_norm1(self.attn_head(embs,embs,embs,pad_mask) + embs)
+            embs = self.layer_norm2(self.res1(embs))
         #######################################################################
         
+        else:
         ########### PRE NORMALIZATION ############################################
-        # normembs = self.layer_norm1(embs)
-        # embs = self.attn_head(normembs,normembs,normembs,pad_mask) + embs 
-        # embs = self.mlp(self.layer_norm2(embs)) + embs
+            normembs = self.layer_norm1(embs)
+            embs = self.attn_head(normembs,normembs,normembs,pad_mask) + embs 
+            embs = self.res1(self.layer_norm2(embs)) + embs
         #########################################################################
         return embs
     
