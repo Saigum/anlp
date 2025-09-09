@@ -251,7 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_dim', type=int, default=512, help='Dimension of the model embeddings.')
     parser.add_argument('--n_blocks', type=int, default=4, help='Number of encoder and decoder blocks.')
     parser.add_argument('--num_heads', type=int, default=8, help='Number of attention heads.')
-    parser.add_argument('--posn_variant', type=int,default=1,help="1: RoPE, 2: RelativePE")
+    parser.add_argument('--posn_class', type=int,default=1,help="1: RoPE, 2: RelativePE")
     parser.add_argument('--posn_weight',type=float,default=0.2,help="Weight of Positional Embedding to QKV matrices")
 
     # Training arguments
