@@ -4,14 +4,14 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from dataclasses import dataclass
 
-from attention import MultiHeadedAttention, MaskedMultiHeadAttention, FastMHA, FastSelfAttn,attnconfig,AttnVariant
-from utils import EnFinnishDataset, PositionalVariant, RoPE, RelativePE
+from attention import MultiHeadedAttention, MaskedMultiHeadAttention, FastMHA, FastSelfAttn,attnconfig,AttnVariant, PositionalVariant, RoPE, RelativePE
+from utils import EnFinnishDataset
 from encoder import TransformerEncoderBlock, EncoderConfig,TransformerEncoder
 from decoder import DecoderConfig,TransformerDecoderBlock,TransformerDecoder
 
 ARCHIVE_PATH = "EUbookshop-1"
 CONTEXT_LEN = 512
-DEVICE = torch.device("cuda")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu" )
 
 def return_all_testingconstants():
     ARCHIVE_PATH = "EUbookshop-1"
@@ -237,7 +237,7 @@ def test_encoder_decoder_block_integration_output(posn_class_variant: int):
         embedding_size=MODEL_DIM, ## this the dimensions of the output of the encoder
         max_seq_len=CONTEXT_LEN,
         atn_cfg=attnconfig(MODEL_DIM, MODEL_DIM, MODEL_DIM, MODEL_DIM, NUM_HEADS, False, CONTEXT_LEN,
-                           posn_class=PositionalVariant(posn_class_variant),pos_weight=0.2,),
+                           posn_class=PositionalVariant(posn_class_variant),posn_weight=0.2,),
         mlp_depth=2,
         attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
         

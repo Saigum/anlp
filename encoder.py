@@ -1,12 +1,11 @@
 from attention import *
 import torch
 from dataclasses import dataclass,field
-from utils import PositionalEncodings
 from torch import nn
 from utils import *
 from enum import Enum
 from tqdm import tqdm
-from utils import PositionalVariant
+from attention import PositionalVariant
 
 
 @dataclass

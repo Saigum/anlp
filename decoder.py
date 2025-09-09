@@ -1,14 +1,12 @@
 from attention import attnconfig,MultiHeadedAttention,MaskedMultiHeadAttention,FastMHA,FastSelfAttn,make_attention
 import torch
 from dataclasses import dataclass,field
-from utils import PositionalEncodings
 from torch import nn
 from utils import ResMLP
-from encoder import make_attention,make_positional_embeddings
-from utils import PositionalVariant
+from encoder import make_attention
 from typing import Optional
 from torch import Tensor
-from attention import AttnVariant
+from attention import AttnVariant   
 import copy
 @dataclass 
 class DecoderConfig:
