@@ -25,7 +25,7 @@ class Transformer(lightning.LightningModule):
         self.encoder =  TransformerEncoder(config.encoder_cfg,config.n_blocks)
         self.decoder =  TransformerDecoder(config.decoder_cfg,config.n_blocks)
         self.tokenizer = config.tokenizer
-        self.loss =  torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id)
+        self.loss =  torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id,label_smoothing=0.1)
     def forward(self,eng_tokens,fin_tokens,en_mask:Optional[Tensor],fin_mask:Optional[Tensor]):
         encoder_outputs = self.encoder(eng_tokens,en_mask)        
         decoder_output = self.decoder(fin_tokens,encoder_outputs,en_mask,fin_mask)
@@ -66,7 +66,19 @@ class Transformer(lightning.LightningModule):
     def predict_step(self,batch):
         return super().predict_step()
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-5)
+        opt = torch.optim.AdamW(self.parameters(), lr=3e-4, betas=(0.9, 0.98), eps=1e-9, weight_decay=0.01)
+        steps_per_epoch = len(self.trainer.datamodule.train_dataloader())
+        warmup_steps = 2000
+        total_steps = steps_per_epoch * self.trainer.max_epochs
+        def lr_lambda(step):
+            if step < warmup_steps:
+                return step / max(1, warmup_steps)
+            # cosine decay
+            progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+            return 0.5 * (1 + np.cos(np.pi * progress))
+        sch = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda)
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "step"}}
+
     
         
 

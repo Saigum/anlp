@@ -7,7 +7,7 @@ import polars as po
 import numpy as np
 import pytorch_lightning as pl
 import lightning
-from transformers import GPT2Tokenizer
+from transformers import GPT2Tokenizer,AutoTokenizer
 from dataclasses import dataclass
 from torch.utils.data import DataChunk
 from enum import Enum
@@ -22,11 +22,14 @@ class EnFinnishDataset(torch.utils.data.Dataset):
             self.english_corpus = fp.readlines()
         with open(os.path.join(archive_path,"EUbookshop.fi")) as fp:
             self.finnish_corpus = fp.readlines()
-        self.tokenizer = GPT2Tokenizer.from_pretrained("openai-community/gpt2")
-        self.tokenizer.add_special_tokens({'pad_token': '<pad>',"bos_token": "<bos>"})        
-        print("PAD token:", self.tokenizer.pad_token, self.tokenizer.pad_token_id)
-        print("EOS token:", self.tokenizer.eos_token, self.tokenizer.eos_token_id)
-        print("BOS token:", self.tokenizer.bos_token, self.tokenizer.bos_token_id)
+        
+        self.tokenizer = AutoTokenizer("Helsinki-NLP/opus-mt-en-fi")
+        print(self.tokenizer.special_tokens_map)
+        # self.tokenizer = GPT2Tokenizer.from_pretrained("openai-community/gpt2")
+        # self.tokenizer.add_special_tokens({'pad_token': '<pad>',"bos_token": "<bos>"})        
+        # print("PAD token:", self.tokenizer.pad_token, self.tokenizer.pad_token_id)
+        # print("EOS token:", self.tokenizer.eos_token, self.tokenizer.eos_token_id)
+        # print("BOS token:", self.tokenizer.bos_token, self.tokenizer.bos_token_id)
         self.context_len = context_len
         print(self.tokenizer.pad_token)      
         print(self.tokenizer.pad_token_id)     
@@ -38,7 +41,7 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         return pad_masks
     def __getitem__(self, index):
         en_tokens = torch.tensor(self.tokenizer(self.english_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
-        finnish_tokens = torch.tensor(self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
+        finnish_tokens = torch.tensor(self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len-1,truncation=True)["input_ids"])
         en_pad_indices = torch.where(en_tokens==self.tokenizer.pad_token_id)[0]
         en_pad_index = en_pad_indices[0] if len(en_pad_indices) >0 else self.context_len
         fin_pad_indices = torch.where(finnish_tokens == self.tokenizer.pad_token_id)[0]
@@ -61,6 +64,7 @@ class DataModuleConfig:
     train_test:float=0.8
     train_val:float=0.8 
     context_len:int=512
+    num_workers:int=8
      
 class EnFinDataModule(lightning.LightningDataModule):
     def __init__(self,
@@ -110,7 +114,7 @@ class RoPE(nn.Module):
     def __init__(self, embedding_dim:int,context_len:int):
         super().__init__( )
         self.d = embedding_dim
-        thetas = torch.arange(start=0,end=context_len,step=1,dtype=torch.float).view(-1,1) @torch.pow(1e5,-2*torch.arange(start=0,end=self.d-1,step=2)/self.d).repeat_interleave(2).view(1,-1)
+        thetas = torch.arange(start=0,end=context_len,step=1,dtype=torch.float).view(-1,1) @torch.pow(1e4,-2*torch.arange(start=0,end=self.d-1,step=2)/self.d).repeat_interleave(2).view(1,-1)
         ## this should be an context_len x d size matrix 
         # print(f"Shape of theta matrix is : {thetas.shape}")
         self.register_buffer('costhetas', torch.cos(thetas))
@@ -119,10 +123,11 @@ class RoPE(nn.Module):
         self.register_buffer('odd_idx', torch.arange(start=1, end=self.d, step=2, dtype=torch.long))
 
     def interswap(self,token_embedding):
+        swapped = token_embedding.clone()
         odds =  token_embedding[...,self.odd_idx]
         evens = token_embedding[...,self.even_idx]
-        token_embedding[...,self.odd_idx] =  -1*evens
-        token_embedding[...,self.even_idx] = odds
+        swapped[...,self.odd_idx] =  -1*evens
+        swapped[...,self.even_idx] = odds
         return token_embedding
     
     def forward(self,token_embeddings):
@@ -143,7 +148,7 @@ class RelativePE(nn.Module):
 class ResMLP(nn.Module):
     def __init__(self, input_size:int,num_layers:int):
         super().__init__()
-        self.Linears = nn.ModuleList([nn.Sequential(nn.Linear(input_size,input_size),nn.GELU()) for _ in range(num_layers)])
+        self.Linears = nn.ModuleList([nn.Sequential(nn.Linear(input_size,input_size),nn.GELU(),nn.Dropout(p=0.1)) for _ in range(num_layers)])
     def forward(self,x):
         res =x
         for i in range(len(self.Linears)):
