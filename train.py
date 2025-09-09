@@ -177,7 +177,7 @@ def train(args):
         max_seq_len=CONTEXT_LEN,
         atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
                            n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
-                           posn_class=PositionalVariant(args.pos),posn_weight=args.posn_weight),
+                           posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
         attn_class=AttnVariant.FAST_MULTIHEADED,
         # posn_class=PositionalVariant(1),
         mlp_depth=2,
