@@ -53,7 +53,7 @@ class MultiHeadedAttention(nn.Module):
             k=self.Wk[i](key_vector)
             v=self.Wv[i](value_vector)
             # print(f"Dimensions of k transpose: {k.T.shape}")
-            A = self.sf(torch.matmul(q,k.mT)/(np.sqrt(1/q.shape[-1])))
+            A = self.sf(torch.matmul(q,k.mT)/np.sqrt(q.shape[-1]))
             output.append(A@v)
             # print(f"Shape of head {i} output; {output[-1].shape}")
         return(torch.cat(output,dim=-1))
@@ -65,7 +65,7 @@ class MaskedMultiHeadAttention(MultiHeadedAttention):
             q=self.Wq[i](query_vector)
             k=self.Wk[i](key_vector)
             v=self.Wv[i](value_vector)
-            A = self.sf(torch.matmul(q,k.mT)/(np.sqrt(1/q.shape[-1])))
+            A = self.sf(torch.matmul(q,k.mT)/np.sqrt(q.shape[-1]))
             A= torch.tril(input=A)
             output.append(A@v)
             # print(f"Shape of head {i} output; {output[-1].shape}")
@@ -94,7 +94,7 @@ class FastMHA(nn.Module):
         Qs = Qs.reshape(Qs.shape[0],n_heads,Qs.shape[1],self.config.model_dim//n_heads)
         Ks = Ks.reshape(Ks.shape[0],n_heads,Ks.shape[1],self.config.model_dim//n_heads)
         Vs = Vs.reshape(Vs.shape[0],n_heads,Vs.shape[1],self.config.model_dim//n_heads)
-        As = torch.matmul(Qs,Ks.mT)/(np.sqrt(1/Qs.shape[-1]))
+        As = torch.matmul(Qs,Ks.mT)/np.sqrt(Qs.shape[-1])
         if padding_mask is not None:
             ## padding mask is to be the same shape as the Attention Tensor
             # print(f"Shape of attention matrixL {As.shape}")
@@ -133,7 +133,7 @@ class FastSelfAttn(nn.Module):
         Qs = Qs.reshape(Qs.shape[0],n_heads,Qs.shape[1],self.config.model_dim//n_heads)
         Ks = Ks.reshape(Ks.shape[0],n_heads,Ks.shape[1],self.config.model_dim//n_heads)
         Vs = Vs.reshape(Vs.shape[0],n_heads,Vs.shape[1],self.config.model_dim//n_heads)
-        As = torch.matmul(Qs,Ks.mT)/(np.sqrt(1/Qs.shape[-1]))
+        As = torch.matmul(Qs,Ks.mT)/np.sqrt(Qs.shape[-1])
         if padding_mask is not None:
             # print(f"Shape of padding mask : {padding_mask.shape}")
             # print(f"Shape of Attention Matrix {As.shape}")

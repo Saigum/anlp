@@ -70,7 +70,7 @@ class TransformerEncoder(nn.Module):
     def __init__(self,config:EncoderConfig,n_blocks:int=4):
         super().__init__()
         self.Embedding = nn.Embedding(config.vocab_size,config.embedding_size)
-        self.EncoderBlocks = nn.ModuleList([TransformerEncoderBlock(config)]*n_blocks)
+        self.EncoderBlocks = nn.ModuleList([TransformerEncoderBlock(config) for _ in range(n_blocks)])
     def forward(self,tokens,pad_mask:Optional[Tensor]=None):
         embs = self.Embedding(tokens) ## currently token embeddings
         for i in range(len(self.EncoderBlocks)):

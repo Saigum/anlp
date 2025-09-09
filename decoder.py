@@ -69,7 +69,7 @@ class TransformerDecoder(nn.Module):
     def __init__(self,config:DecoderConfig,n_blocks:int=4):
         super().__init__()
         self.Embedding = nn.Embedding(config.vocab_size,config.embedding_size)
-        self.DecoderBlocks = nn.ModuleList([TransformerDecoderBlock(config)]*n_blocks)
+        self.DecoderBlocks = nn.ModuleList([TransformerDecoderBlock(config) for _ in range(n_blocks)])
         self.fc = nn.Sequential(nn.Linear(config.embedding_size,config.vocab_size))
     def forward(self,tokens,encoder_output,source_pad_mask:Optional[Tensor]=None,target_pad_mask:Optional[Tensor]=None):
         embs =  self.Embedding(tokens)
