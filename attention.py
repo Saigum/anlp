@@ -123,8 +123,11 @@ class FastSelfAttn(nn.Module):
         super().__init__( )
         assert config.query_dim == config.key_dim and config.key_dim == config.value_dim
         self.W_QKV = nn.Linear(config.query_dim,config.model_dim*3)
+        self.dropout = nn.Dropout(p=0.2)
         self.sf = nn.Softmax(dim=-1)
         self.config=config
+        self.triu_indices = torch.triu_indices(row=config.context_len,col=config.context_len)
+
     def forward(self,query_vector,key_vector,value_vector,padding_mask:Optional[Tensor]=None):
         ## this is self attention, other args are just dummy args passed in but unused.
         QKV = self.W_QKV(query_vector)
@@ -149,6 +152,8 @@ class FastSelfAttn(nn.Module):
         # print(f"Shape of attention matrix : {As.shape}")
         ## output shape is batch,n_heads,num_tokens,num_tokens here hopefully ?
         output  = torch.matmul(As,Vs)
+        output = self.dropout(output)
+
         output = output.reshape(output.shape[0],output.shape[2],self.config.model_dim) 
         # print(f"Final output shape : {output.shape}") ## should be batch,n_heads,num_tokens,model_dim
         # print(f"Shape of outputs: {output.shape}")
