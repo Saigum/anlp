@@ -190,7 +190,7 @@ def train(args):
         atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
                            n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
                            posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
-        pos_weight=0.2,
+        # pos_weight=0.2,
         mlp_depth=2,
         attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
         # posn_class=PositionalVariant(1),
