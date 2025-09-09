@@ -23,10 +23,10 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         with open(os.path.join(archive_path,"EUbookshop.fi")) as fp:
             self.finnish_corpus = fp.readlines()
         
-        self.tokenizer = AutoTokenizer("Helsinki-NLP/opus-mt-en-fi")
+        self.tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fi")
         print(self.tokenizer.special_tokens_map)
         # self.tokenizer = GPT2Tokenizer.from_pretrained("openai-community/gpt2")
-        # self.tokenizer.add_special_tokens({'pad_token': '<pad>',"bos_token": "<bos>"})        
+        self.tokenizer.add_special_tokens({"bos_token": "<bos>"})        
         # print("PAD token:", self.tokenizer.pad_token, self.tokenizer.pad_token_id)
         # print("EOS token:", self.tokenizer.eos_token, self.tokenizer.eos_token_id)
         # print("BOS token:", self.tokenizer.bos_token, self.tokenizer.bos_token_id)
@@ -41,7 +41,8 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         return pad_masks
     def __getitem__(self, index):
         en_tokens = torch.tensor(self.tokenizer(self.english_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
-        finnish_tokens = torch.tensor(self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len-1,truncation=True)["input_ids"])
+        finnish_tokens = torch.tensor([self.tokenizer.bos_token_id] + self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len-1,truncation=True)["input_ids"])
+        ## for teacher forcing 
         en_pad_indices = torch.where(en_tokens==self.tokenizer.pad_token_id)[0]
         en_pad_index = en_pad_indices[0] if len(en_pad_indices) >0 else self.context_len
         fin_pad_indices = torch.where(finnish_tokens == self.tokenizer.pad_token_id)[0]

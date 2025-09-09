@@ -100,6 +100,7 @@ def train(args):
         atn_cfg=attnconfig(MODEL_DIM, MODEL_DIM, MODEL_DIM, MODEL_DIM, NUM_HEADS, False, CONTEXT_LEN),
         attn_class=AttnVariant.FAST_MULTIHEADED,
         posn_class=PositionalVariant(1),
+        mlp_depth=2,
     )
     encoder_cfg = EncoderConfig(
         num_heads=4,
