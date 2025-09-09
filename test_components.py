@@ -252,7 +252,7 @@ def test_encoder_decoder_block_integration_output(posn_class_variant: int):
     for en_tokens, en_mask, fin_tokens, fin_mask in dataloader:
         # 1. Get the encoder's output (memory for the decoder)
         encoder_outputs = encoder(en_tokens.to(DEVICE), en_mask.to(DEVICE))
-        integrated_outputs = decoder(fin_tokens.to(DEVICE), encoder_outputs.to(DEVICE), fin_mask.to(DEVICE))
+        integrated_outputs = decoder(fin_tokens.to(DEVICE), encoder_outputs.to(DEVICE),en_mask.to(DEVICE), fin_mask.to(DEVICE))
         break
 
     ##################
