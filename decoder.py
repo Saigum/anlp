@@ -39,8 +39,9 @@ class TransformerDecoderBlock(nn.Module):
         #                                    nn.Linear(config.atn_cfg.model_dim,config.embedding_size))
         # else:
         self.attn_head = make_attention(attn_class=config.attn_class,atn_config=copy.deepcopy(config.atn_cfg))
-        self.res1 = nn.Sequential( ResMLP(input_size=config.embedding_size,num_layers=config.mlp_depth),
-                                  nn.LayerNorm(config.embedding_size))
+        self.res1 = ResMLP(input_size=config.embedding_size,num_layers=config.mlp_depth)
+                                  
+        #.mlp = nn.Sequential(*[nn.Sequential(nn.Linear(config.embedding_size,config.embedding_size),nn.GELU(),nn.Dropout(p=0.2)) for _ in range(config.mlp_depth)])
         config.atn_cfg.causal_mask = False
         config.atn_cfg.posn_class = PositionalVariant.NONE
         config.atn_cfg.posn_weight = 0
@@ -58,12 +59,27 @@ class TransformerDecoderBlock(nn.Module):
         
         # print(f"Embs shape: {embs.shape}")
         # print(f"This is the pad mask shape: {pad_mask.shape}")
+        
         embs = token_embeddings
+        
+#################### POST NORM VERSION###############################################################
         embs = self.layer_norm1(self.attn_head(embs,embs,embs,target_pad_mask) + embs) ## target lang pad_mask for 
         # print(f"This is the input to cross attention: ")
         # print(f"This is the encoder_output shape : {encoder_output.shape}")
         embs = self.layer_norm2(embs +  self.CrossAttention(embs,encoder_output,encoder_output,source_pad_mask))
         embs  = self.layer_norm3(self.res1(embs))
+################################################################################################################
+        
+        
+###################### PRE NORM VERSION ###############################################################
+        # normembs = self.layer_norm1(embs)
+        # embs  = self.attn_head(normembs,normembs,normembs,target_pad_mask) + embs 
+        # normembs = self.layer_norm2(embs)
+        # embs  = self.CrossAttention(normembs,encoder_output,encoder_output,source_pad_mask) + embs
+        
+        # embs  = self.mlp(self.layer_norm3(embs)) + embs
+####################################################################################################### 
+        
         return embs
         
 class TransformerDecoder(nn.Module):

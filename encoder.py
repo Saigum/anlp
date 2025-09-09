@@ -28,6 +28,8 @@ class EncoderConfig:
       attn_class:AttnVariant=AttnVariant.SLOW_MULTIHEADED
     #   posn_class:PositionalVariant=PositionalVariant.ROPE
 
+
+
       
 
 class TransformerEncoderBlock(nn.Module):
@@ -44,6 +46,7 @@ class TransformerEncoderBlock(nn.Module):
         self.attn_head = make_attention(attn_class=config.attn_class,atn_config=config.atn_cfg)
         self.layer_norm1 = nn.LayerNorm(config.embedding_size)
         self.res1 = ResMLP(input_size=config.embedding_size,num_layers=config.mlp_depth)
+        # self.mlp = nn.Sequential(*[nn.Sequential(nn.Linear(config.embedding_size,config.embedding_size),nn.GELU(),nn.Dropout(p=0.2)) for _ in range(config.mlp_depth)])
         self.layer_norm2 = nn.LayerNorm(config.embedding_size)
         self.encodercfg = config
     
@@ -51,8 +54,17 @@ class TransformerEncoderBlock(nn.Module):
         # embs = self.Embedding(x)
         # pos_embs = self.PositionalEncoding(embs)
         # embs = embs + self.encodercfg.pos_weight*pos_embs
+        
+        ########### POST NORMALIZATION #######################################
         embs = self.layer_norm1(self.attn_head(embs,embs,embs,pad_mask) + embs)
         embs = self.layer_norm2(self.res1(embs))
+        #######################################################################
+        
+        ########### PRE NORMALIZATION ############################################
+        # normembs = self.layer_norm1(embs)
+        # embs = self.attn_head(normembs,normembs,normembs,pad_mask) + embs 
+        # embs = self.mlp(self.layer_norm2(embs)) + embs
+        #########################################################################
         return embs
     
 

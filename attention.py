@@ -60,7 +60,7 @@ class RelativePE(nn.Module):
         pass
     
 
-t
+
 
 class NoPE(nn.Module):
     def __init__(self):
@@ -274,7 +274,7 @@ class RelativePEMHA(nn.Module):
         Ks = Ks.reshape(Ks.shape[0],n_heads,Ks.shape[1],self.config.model_dim//n_heads)
         Vs = Vs.reshape(Vs.shape[0],n_heads,Vs.shape[1],self.config.model_dim//n_heads)
        ####positional embeddings#############
-        Srel = torch.matmul(Qs,self.R[torch.arange(start=-Qs.shape[2],end=)])
+        Srel = torch.matmul(Qs,self.R[torch.arange(start=-Qs.shape[2],end=Qs.shape[0])])
         #################################
         As = torch.matmul(Qs,Ks.mT)/np.sqrt(Qs.shape[-1])
         if padding_mask is not None:
@@ -295,7 +295,7 @@ class RelativePEMHA(nn.Module):
         # print(f"Shape of outputs: {output.shape}")
         if(self.config.causal_mask):
             pass
-        return outpu        
+        return output        
 
 class AttentionHead(nn.Module):
     def __init__(self, atn_cfg:attnconfig,embedding_size:int):

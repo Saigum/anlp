@@ -34,10 +34,11 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         print(self.tokenizer.pad_token)      
         print(self.tokenizer.pad_token_id)     
 
-    def return_masks(self,pad_idx:int):
+    def return_masks(self,pad_idx:int,keys_only:bool):
         pad_masks = torch.zeros(size=(self.context_len,self.context_len))
         pad_masks[:,pad_idx:] = -1e9
-        pad_masks[pad_idx:,:] = -1e9
+        if not keys_only:
+            pad_masks[pad_idx:,:] = -1e9
         return pad_masks
     def __getitem__(self, index):
         en_tokens = torch.tensor(self.tokenizer(self.english_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
@@ -47,8 +48,8 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         en_pad_index = en_pad_indices[0] if len(en_pad_indices) >0 else self.context_len
         fin_pad_indices = torch.where(finnish_tokens == self.tokenizer.pad_token_id)[0]
         fin_pad_index = fin_pad_indices[0] if len(fin_pad_indices) >0 else self.context_len
-        en_pad_masks = self.return_masks(en_pad_index)
-        fin_pad_masks = self.return_masks(fin_pad_index)
+        en_pad_masks = self.return_masks(en_pad_index,keys_only=True)
+        fin_pad_masks = self.return_masks(fin_pad_index,keys_only=True)
         # en_pad_masks = torch.concat([torch.full((en_pad_index,),fill_value=0),torch.full((self.context_len-en_pad_index,),-torch.inf)])
         # fin_pad_masks = torch.concat([torch.full((fin_pad_index,),fill_value=0),torch.full((self.context_len-fin_pad_index,),-1*torch.inf)])
         # en_pad_masks = en_pad_masks.view(-1,1)@torch.concat([torch.zeros((fin_pad_index,)),torch.ones(self.context_len-fin_pad_index)])
@@ -90,11 +91,11 @@ class EnFinDataModule(lightning.LightningDataModule):
                 generator=generator
             )
     def train_dataloader(self):
-        return DataLoader(self.train_ds,batch_size=self.config.batch_size)
+        return DataLoader(self.train_ds,batch_size=self.config.batch_size,num_workers=8)
     def val_dataloader(self):
-        return DataLoader(self.val_ds,batch_size=self.config.batch_size)
+        return DataLoader(self.val_ds,batch_size=self.config.batch_size,num_workers=8)
     def test_dataloader(self):
-        return DataLoader(self.test_ds,batch_size=self.config.batch_size)
+        return DataLoader(self.test_ds,batch_size=self.config.batch_size,num_workers=8)
     
 ####################################################################################
 ################    POSITIONAL EMBEDDINGS  #########################################
