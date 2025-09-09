@@ -6,7 +6,7 @@ from utils import ResMLP
 from encoder import make_attention
 from typing import Optional
 from torch import Tensor
-from attention import AttnVariant   
+from attention import AttnVariant,PositionalVariant   
 import copy
 @dataclass 
 class DecoderConfig:
@@ -42,6 +42,8 @@ class TransformerDecoderBlock(nn.Module):
         self.res1 = nn.Sequential( ResMLP(input_size=config.embedding_size,num_layers=config.mlp_depth),
                                   nn.LayerNorm(config.embedding_size))
         config.atn_cfg.causal_mask = False
+        config.atn_cfg.posn_class = PositionalVariant.NONE
+        config.atn_cfg.posn_weight = 0
         self.CrossAttention = FastMHA(config=copy.deepcopy(config.atn_cfg))
         
         
