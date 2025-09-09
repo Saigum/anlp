@@ -54,6 +54,7 @@ class TransformerDecoderBlock(nn.Module):
         self.layer_norm2 = nn.LayerNorm(config.embedding_size)
         self.layer_norm3 = nn.LayerNorm(config.embedding_size)
         self.decodercfg = config
+        self.post_pre_norm = config.post_pre_norm
         
     def forward(self,token_embeddings,encoder_output,source_pad_mask:Optional[Tensor]=None,target_pad_mask:Optional[Tensor]=None):
         # pos_embs = self.PositionalEncoding(token_embeddings)
@@ -65,7 +66,7 @@ class TransformerDecoderBlock(nn.Module):
         embs = token_embeddings
         
 #################### POST NORM VERSION###############################################################
-        if self.decodercfg.post_pre_norm == 0:
+        if self.post_pre_norm == 0:
             embs = self.layer_norm1(self.attn_head(embs,embs,embs,target_pad_mask) + embs) ## target lang pad_mask for 
             # print(f"This is the input to cross attention: ")
             # print(f"This is the encoder_output shape : {encoder_output.shape}")

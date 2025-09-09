@@ -46,20 +46,20 @@ class TransformerEncoderBlock(nn.Module):
         # else:
         self.attn_head = make_attention(attn_class=config.attn_class,atn_config=config.atn_cfg)
         self.layer_norm1 = nn.LayerNorm(config.embedding_size)
-        if self.encodercfg.post_pre_norm == 0:
+        if config.post_pre_norm == 0:
             self.res1 = ResMLP(input_size=config.embedding_size,num_layers=config.mlp_depth)
         else:
             self.res1 = nn.Sequential(*[nn.Sequential(nn.Linear(config.embedding_size,config.embedding_size),nn.GELU(),nn.Dropout(p=0.2)) for _ in range(config.mlp_depth)])
         self.layer_norm2 = nn.LayerNorm(config.embedding_size)
         self.encodercfg = config
+        self.post_pre_norm = config.post_pre_norm
     
     def forward(self,embs,pad_mask:Optional[Tensor]=None):
         # embs = self.Embedding(x)
         # pos_embs = self.PositionalEncoding(embs)
         # embs = embs + self.encodercfg.pos_weight*pos_embs
-        
         ########### POST NORMALIZATION #######################################
-        if self.encodercfg.post_pre_norm == 0:
+        if self.post_pre_norm == 0:
             embs = self.layer_norm1(self.attn_head(embs,embs,embs,pad_mask) + embs)
             embs = self.layer_norm2(self.res1(embs))
         #######################################################################
