@@ -143,7 +143,7 @@ class RelativePE(nn.Module):
 class ResMLP(nn.Module):
     def __init__(self, input_size:int,num_layers:int):
         super().__init__()
-        self.Linears = nn.ModuleList([nn.Linear(input_size,input_size) for _ in range(num_layers)])
+        self.Linears = nn.ModuleList([nn.Sequential(nn.Linear(input_size,input_size),nn.GELU()) for _ in range(num_layers)])
     def forward(self,x):
         res =x
         for i in range(len(self.Linears)):

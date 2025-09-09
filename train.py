@@ -28,7 +28,7 @@ class Transformer(lightning.LightningModule):
         self.loss =  torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id)
     def forward(self,eng_tokens,fin_tokens,en_mask:Optional[Tensor],fin_mask:Optional[Tensor]):
         encoder_outputs = self.encoder(eng_tokens,en_mask)        
-        decoder_output = self.decoder(fin_tokens,encoder_outputs,fin_mask)
+        decoder_output = self.decoder(fin_tokens,encoder_outputs,en_mask)
         return decoder_output
     def training_step(self,batch):
         en_tokens,en_mask,fin_tokens,fin_mask = batch
