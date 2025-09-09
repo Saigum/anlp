@@ -59,6 +59,8 @@ def test_attention_output_shape(attention_cls, attention_type):
             model_dim=model_dim,
             n_heads=n_heads,
             context_len=seq_len_q,
+            posn_class=PositionalVariant(1),
+            posn_weight=0.2
         )
         attention_layer = attention_cls(config)
         input_tensor = torch.randn(batch_size, seq_len_q, query_dim)
@@ -72,6 +74,8 @@ def test_attention_output_shape(attention_cls, attention_type):
             model_dim=model_dim,
             n_heads=n_heads,
             context_len=seq_len_q,
+            posn_class=PositionalVariant(1),
+            posn_weight=0.2
         )
         attention_layer = attention_cls(config)
         query_vector = torch.randn(batch_size, seq_len_q, config.query_dim)
@@ -153,7 +157,10 @@ def test_encoder_block_integration_output_shape(posn_class_variant: int):
     dataloader = DataLoader(dataset, batch_size=2)
 
     atn_cfg = attnconfig(query_dim=EMBEDDING_SIZE, key_dim=EMBEDDING_SIZE, value_dim=EMBEDDING_SIZE, model_dim=512, n_heads=4,
-                         context_len=CONTEXT_LEN)
+                         context_len=CONTEXT_LEN,
+                         posn_class=PositionalVariant(posn_class_variant),
+                         posn_weight=0.2
+                         )
     
     encoder_cfg = EncoderConfig(
         num_heads=4,
@@ -161,11 +168,8 @@ def test_encoder_block_integration_output_shape(posn_class_variant: int):
         embedding_size=EMBEDDING_SIZE,
         max_seq_len=CONTEXT_LEN,
         atn_cfg=atn_cfg,
-        pos_weight=0.2,
         mlp_depth=2,
-        attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
-        posn_class=PositionalVariant(posn_class_variant),
-        
+        attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant        
     )
     
     # encoder_block = TransformerEncoderBlock(config=encoder_cfg)
@@ -222,20 +226,21 @@ def test_encoder_decoder_block_integration_output(posn_class_variant: int):
         vocab_size=len(dataset.tokenizer),
         embedding_size=MODEL_DIM,
         max_seq_len=CONTEXT_LEN,
-        atn_cfg=attnconfig(MODEL_DIM, MODEL_DIM, MODEL_DIM, MODEL_DIM, NUM_HEADS, False, CONTEXT_LEN),
+        atn_cfg=attnconfig(MODEL_DIM, MODEL_DIM, MODEL_DIM, MODEL_DIM, NUM_HEADS, False, CONTEXT_LEN,
+                           posn_class=PositionalVariant(posn_class_variant),posn_weight=0.2),
         attn_class=AttnVariant.FAST_MULTIHEADED,
-        posn_class=PositionalVariant(posn_class_variant),
+        
     )
     encoder_cfg = EncoderConfig(
         num_heads=4,
         vocab_size=len(dataset.tokenizer),
         embedding_size=MODEL_DIM, ## this the dimensions of the output of the encoder
         max_seq_len=CONTEXT_LEN,
-        atn_cfg=attnconfig(MODEL_DIM, MODEL_DIM, MODEL_DIM, MODEL_DIM, NUM_HEADS, False, CONTEXT_LEN),
-        pos_weight=0.2,
+        atn_cfg=attnconfig(MODEL_DIM, MODEL_DIM, MODEL_DIM, MODEL_DIM, NUM_HEADS, False, CONTEXT_LEN,
+                           posn_class=PositionalVariant(posn_class_variant),pos_weight=0.2,),
         mlp_depth=2,
         attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
-        posn_class=PositionalVariant(posn_class_variant),
+        
     )
     
     encoder = TransformerEncoder(encoder_cfg,n_blocks=1).to(DEVICE)

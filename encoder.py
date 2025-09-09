@@ -24,19 +24,10 @@ class EncoderConfig:
             n_heads=8
         )
     )
-      pos_weight:int=0.2
+    #   pos_weight:int=0.2
       mlp_depth:int=1
       attn_class:AttnVariant=AttnVariant.SLOW_MULTIHEADED
-      posn_class:PositionalVariant=PositionalVariant.ROPE
-
-def make_positional_embeddings(posn_class:PositionalVariant,embedding_size:int,max_seq_len:int):
-    if posn_class == PositionalVariant.ROPE:
-        return RoPE(embedding_dim=embedding_size,context_len=max_seq_len)
-    elif posn_class == PositionalVariant.RELATIVEPE:
-        return RelativePE(embedding_dim=embedding_size,context_len=max_seq_len)
-    else:
-        raise Exception("Said attention class hasnt been implemented")
-    
+    #   posn_class:PositionalVariant=PositionalVariant.ROPE
 
       
 
@@ -45,7 +36,7 @@ class TransformerEncoderBlock(nn.Module):
         super().__init__()
         # self.Embedding = nn.Embedding(config.vocab_size,config.embedding_size)
         # print(f"Received Max Seq Len: {config.max_seq_len}")
-        self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len)
+        # self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len)
         
         # if config.atn_cfg.model_dim != config.embedding_size:
         #     self.attn_head = nn.Sequential(make_attention(attn_class=config.attn_class,atn_config=config.atn_cfg),
@@ -59,8 +50,8 @@ class TransformerEncoderBlock(nn.Module):
     
     def forward(self,embs,pad_mask:Optional[Tensor]=None):
         # embs = self.Embedding(x)
-        pos_embs = self.PositionalEncoding(embs)
-        embs = embs + self.encodercfg.pos_weight*pos_embs
+        # pos_embs = self.PositionalEncoding(embs)
+        # embs = embs + self.encodercfg.pos_weight*pos_embs
         embs = self.layer_norm1(self.attn_head(embs,embs,embs,pad_mask) + embs)
         embs = self.layer_norm2(self.res1(embs))
         return embs

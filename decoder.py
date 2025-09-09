@@ -25,16 +25,16 @@ class DecoderConfig:
             n_heads=8
         )
     )
-    pos_weight:int=0.2
+    # pos_weight:int=0.2
     mlp_depth:int=1
     attn_class:AttnVariant=AttnVariant.SLOW_MULTIHEADED
-    posn_class:PositionalVariant=PositionalVariant.ROPE
+    # posn_class:PositionalVariant=PositionalVariant.ROPE
 
 class TransformerDecoderBlock(nn.Module):
     def __init__(self,config:DecoderConfig):
         super().__init__()
         # self.Embedding = nn.Embedding(config.vocab_size,config.embedding_size)
-        self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len)
+        # self.PositionalEncoding =  make_positional_embeddings(config.posn_class,config.embedding_size,config.max_seq_len)
         config.atn_cfg.causal_mask = True
         # if config.atn_cfg.model_dim != config.embedding_size:
         #     self.attn_head = nn.Sequential(make_attention(attn_class=config.attn_class,atn_config=config.atn_cfg),
@@ -53,11 +53,12 @@ class TransformerDecoderBlock(nn.Module):
         self.decodercfg = config
         
     def forward(self,token_embeddings,encoder_output,source_pad_mask:Optional[Tensor]=None,target_pad_mask:Optional[Tensor]=None):
-        pos_embs = self.PositionalEncoding(token_embeddings)
-        embs = token_embeddings + self.decodercfg.pos_weight*pos_embs
+        # pos_embs = self.PositionalEncoding(token_embeddings)
+        # embs = token_embeddings + self.decodercfg.pos_weight*pos_embs
         
         # print(f"Embs shape: {embs.shape}")
         # print(f"This is the pad mask shape: {pad_mask.shape}")
+        embs = token_embeddings
         embs = self.layer_norm1(self.attn_head(embs,embs,embs,target_pad_mask) + embs) ## target lang pad_mask for 
         # print(f"This is the input to cross attention: ")
         # print(f"This is the encoder_output shape : {encoder_output.shape}")

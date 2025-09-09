@@ -101,49 +101,6 @@ class EnFinDataModule(lightning.LightningDataModule):
 ####################################################################################
 
 
-## learned positional_encoding, like in GPT-2
-class PositionalEncodings(nn.Module):
-    def __init__(self,max_seq_len:int,hidden_size:int):
-        super().__init__()
-        self.pos_emb = nn.Embedding(num_embeddings=max_seq_len,embedding_dim=hidden_size)
-    def forward(self,positions):
-        ## positions would have to be a set of indices
-        return(self.pos_emb(positions))
-
-
-class RoPE(nn.Module):
-    def __init__(self, embedding_dim:int,context_len:int):
-        super().__init__( )
-        self.d = embedding_dim
-        thetas = torch.arange(start=0,end=context_len,step=1,dtype=torch.float).view(-1,1) @torch.pow(1e4,-2*torch.arange(start=0,end=self.d-1,step=2)/self.d).repeat_interleave(2).view(1,-1)
-        ## this should be an context_len x d size matrix 
-        # print(f"Shape of theta matrix is : {thetas.shape}")
-        self.register_buffer('costhetas', torch.cos(thetas))
-        self.register_buffer('sinethetas', torch.sin(thetas))
-        self.register_buffer('even_idx', torch.arange(start=0, end=self.d, step=2, dtype=torch.long))
-        self.register_buffer('odd_idx', torch.arange(start=1, end=self.d, step=2, dtype=torch.long))
-
-    def interswap(self,token_embedding):
-        swapped = token_embedding.clone()
-        odds =  token_embedding[...,self.odd_idx]
-        evens = token_embedding[...,self.even_idx]
-        swapped[...,self.odd_idx] =  -1*evens
-        swapped[...,self.even_idx] = odds
-        return token_embedding
-    
-    def forward(self,token_embeddings):
-        # print(f"Shape of token Embeddings is {token_embeddings.shape}")
-        output = token_embeddings*self.costhetas.unsqueeze(0) + self.interswap(token_embeddings)*self.sinethetas.unsqueeze(0)
-        return output
-
-
-class RelativePE(nn.Module):
-    def __init__(self, embedding_dim:int,context_len:int):
-        super().__init__()
-        self.emb = nn.Embedding(num_embeddings=context_len,embedding_dim=embedding_dim)
-        
-        
-
 
 
 class ResMLP(nn.Module):
@@ -157,7 +114,4 @@ class ResMLP(nn.Module):
         return res+x
 
 
-    
-class PositionalVariant(Enum):
-    ROPE=1
-    RELATIVEPE=2
+
