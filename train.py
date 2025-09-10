@@ -184,7 +184,8 @@ class Transformer(lightning.LightningModule):
 
 
 def train(args):
-    dmconfig= DataModuleConfig(archive_path=args.archive_path,batch_size=args.batch_size,train_test=args.train_test,train_val=args.train_val,context_len=args.context_len,clean=args.clean_dataset)
+    dmconfig= DataModuleConfig(archive_path=args.archive_path,batch_size=args.batch_size,train_test=args.train_test,train_val=args.train_val,context_len=args.context_len,clean=args.clean_dataset,
+                               keys_only=args.keys_only)
     dm = EnFinDataModule(dmconfig)
     dm.setup("fit")
     NUM_HEADS = args.num_heads  
@@ -308,7 +309,7 @@ if __name__ == "__main__":
     parser.add_argument('--posn_weight',type=float,default=0.2,help="Weight of Positional Embedding to QKV matrices")
     parser.add_argument('--post_pre_norm',type=int,default=0,help="Argument to switch between pre and post normalization.")
     parser.add_argument('--adding_padding',type=int,default=0,help="Argument to switch between adding or boolean masking padding. O for not adding. 1 for adding")
-
+    parser.add_argument('--keys_only',type=int,default=1,help="Whether to pad mask for keys only or full pad mask.")
     # Training arguments
     parser.add_argument('--batch_size', type=int, default=8, help='Training batch size.')
     parser.add_argument('--devices', type=int, default=1, help='Number of devices (GPUs/CPUs) to use.')

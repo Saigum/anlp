@@ -27,7 +27,7 @@ def _pad_bool_matrix(pad_idx: int, L: int) -> torch.Tensor:
     return m
 
 class EnFinnishDataset(torch.utils.data.Dataset):
-    def __init__(self,archive_path:str,context_len:int=512,adding_padding:int=0):
+    def __init__(self,archive_path:str,context_len:int=512,adding_padding:int=0,keys_only:bool=True):
         super().__init__()
         with open(os.path.join(archive_path,"EUbookshop.en")) as fp:
             self.english_corpus = fp.readlines()
@@ -45,6 +45,7 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         print(self.tokenizer.pad_token)      
         print(self.tokenizer.pad_token_id)    
         self.adding_padding=adding_padding
+        self.keys_only  = keys_only
 
     def return_masks(self,pad_idx:int,keys_only:bool):
         pad_masks = torch.zeros(size=(self.context_len,self.context_len))
@@ -61,8 +62,8 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         fin_pad_indices = torch.where(finnish_tokens == self.tokenizer.pad_token_id)[0]
         fin_pad_index = fin_pad_indices[0] if len(fin_pad_indices) >0 else self.context_len
         if self.adding_padding:
-            en_pad_masks = self.return_masks(en_pad_index,keys_only=False)
-            fin_pad_masks = self.return_masks(fin_pad_index,keys_only=False)
+            en_pad_masks = self.return_masks(en_pad_index,keys_only=self.keys_only)
+            fin_pad_masks = self.return_masks(fin_pad_index,keys_only=self.keys_only)
         else:
             en_pad_masks  = _pad_bool_matrix(en_pad_index,self.context_len)
             fin_pad_masks = self.return_masks(fin_pad_index,self.context_len)
@@ -123,11 +124,14 @@ class CleanedEnFinnishDataset(Dataset):
         dedup: bool = True,
         split: Optional[str] = None,          # None, "train", "val", "test"
         splits: Tuple[float, float, float] = (0.90, 0.05, 0.05),
-        seed: int = 42
+        seed: int = 42,
+        keys_only:int=1
     ):
         super().__init__()
         self.context_len = context_len
         self.adding_padding = adding_padding
+        self.keys_only = keys_only
+        
         if (os.path.exists(os.path.join(archive_path, "en_tokens.pk")) and 
             os.path.exists(os.path.join(archive_path, "fi_tokens.pk"))):
             with open(os.path.join(archive_path, "en_tokens.pk"), "rb") as f:
@@ -266,8 +270,8 @@ class CleanedEnFinnishDataset(Dataset):
         fi_pad_idx = _first_pad_index(fi, PAD, L)
 
         if(self.adding_padding):
-            en_mask_bool = self.return_masks(en_pad_idx,False) ## just naming it this lol coz why not.
-            fi_mask_bool = self.return_masks(fi_pad_idx,False)
+            en_mask_bool = self.return_masks(en_pad_idx,self.keys_only) ## just naming it this lol coz why not.
+            fi_mask_bool = self.return_masks(fi_pad_idx,self.keys_only)
         else:
             en_mask_bool = _pad_bool_matrix(en_pad_idx, L)  
             fi_mask_bool = _pad_bool_matrix(fi_pad_idx, L)
@@ -285,6 +289,7 @@ class DataModuleConfig:
     num_workers:int=8
     clean:int=0
     adding_padding:int=0
+    keys_only:int =1
      
 class EnFinDataModule(lightning.LightningDataModule):
     def __init__(self,
@@ -295,9 +300,11 @@ class EnFinDataModule(lightning.LightningDataModule):
     def setup(self, stage: str):
         if not hasattr(self, 'FullDataset'):
             if(self.config.clean):
-                self.FullDataset = CleanedEnFinnishDataset(self.config.archive_path,self.config.context_len,self.config.adding_padding)
+                self.FullDataset = CleanedEnFinnishDataset(self.config.archive_path,self.config.context_len,self.config.adding_padding,
+                                                           keys_only=self.config.keys_only)
             else:    
-                self.FullDataset = EnFinnishDataset(self.config.archive_path,context_len=self.config.context_len,adding_padding=self.config.adding_padding)
+                self.FullDataset = EnFinnishDataset(self.config.archive_path,context_len=self.config.context_len,adding_padding=self.config.adding_padding,
+                                                    keys_only=self.config.keys_only)
         if not hasattr(self, 'train_ds'):
             full_len = len(self.FullDataset)
             train_len = int(self.config.train_test * full_len)
