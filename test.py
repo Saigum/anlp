@@ -7,19 +7,26 @@ from typing import Optional
 from torch.utils.data import DataLoader
 from torch import Generator
 from torch.utils.data import random_split
-
+from torcheval.metrics.text import BLEUScore as TE_BLEU
 # Your imports
 from train import Transformer, TransformerConfig
 from attention import attnconfig, AttnVariant, PositionalVariant
 from encoder import EncoderConfig
 from decoder import DecoderConfig
-from utils import EnFinDataModule, EnFinnishDataset
+from utils import EnFinDataModule, EnFinnishDataset,CleanedEnFinnishDataset
 
 
 class Strategies(Enum):
     Greedy = "greedy"
     TopK = "topk"
     Beam = "beam"
+    
+def _pad_bool_matrix(pad_idx: int, L: int) -> torch.Tensor:
+    m = torch.zeros((L, L), dtype=torch.bool)
+    if pad_idx < L:
+        m[:, pad_idx:] = True
+        m[pad_idx:, :] = True
+    return m
 
 class AutoRegressiveGenerator(nn.Module):
     def __init__(self, *, tokenizer, model, eos_token_id: Optional[int] = None, context_len: int = 512):
@@ -46,6 +53,7 @@ class AutoRegressiveGenerator(nn.Module):
         max_new_tokens: int = 64,
         bos_token_id: Optional[int] = None,
         temperature: float = 1.0,
+        adding_padding:int=0,
     ) -> Tensor:
         """Greedy/TopK path uses this default implementation."""
         device = en_tokens.device
@@ -61,7 +69,11 @@ class AutoRegressiveGenerator(nn.Module):
 
         steps = min(max_new_tokens, self.context_len - 1)
         for i in range(1, steps + 1):
-            fin_mask = self.return_masks(i).unsqueeze(0)
+            if(adding_padding):
+                fin_mask = self.return_masks(i).unsqueeze(0)
+            else:
+                fin_mask = _pad_bool_matrix(i,self.context_len).expand(en_tokens.shape[0],-1,-1)
+            
             # print(f"Shape of en_tokens:{en_tokens.shape}")
             # print(f"Shape of en_mask:{en_mask.shape}")
 
@@ -135,6 +147,7 @@ class BeamSearchDecoding(AutoRegressiveGenerator):
         max_new_tokens: int = 64,
         bos_token_id: Optional[int] = None,
         temperature: float = 1.0,  # not used; could be supported
+        adding_padding:int=0,
     ) -> Tensor:
         device = en_tokens.device
         self.model.eval()
@@ -157,12 +170,16 @@ class BeamSearchDecoding(AutoRegressiveGenerator):
 
         for i in range(1, steps + 1):
             live_count = beams.size(0)
-            fin_mask = self.return_masks(i)
 
             # Expand encoder inputs across beams
             en_rep = en_tokens.expand(live_count, -1)
             en_mask_rep = en_mask.expand(live_count, *([-1] * (en_mask.dim() - 1))) if en_mask is not None else None
 
+            if(adding_padding):
+                fin_mask = self.return_masks(i).unsqueeze(0)
+            else:
+                fin_mask = _pad_bool_matrix(i,self.context_len).expand(en_rep.shape[0],-1,-1)
+            
             logits = self.model(en_rep, beams, en_mask_rep, fin_mask)  # [live, T, V]
             logits_last = logits[:, i, :]                               # [live, V]
             logprobs = torch.log_softmax(logits_last, dim=-1)           # [live, V]
@@ -198,7 +215,8 @@ class BeamSearchDecoding(AutoRegressiveGenerator):
                     finalized.append((norm_score, cand.clone()))
                     continue
 
-                if next_slot < self.beam_size:
+                capacity = next_beams.size(0)          # << key change
+                if next_slot < capacity:
                     next_beams[next_slot] = cand
                     next_beam_scores[next_slot] = score
                     next_slot += 1
@@ -229,34 +247,70 @@ class BeamSearchDecoding(AutoRegressiveGenerator):
         return best_tokens
 
 
-def build_configs(tokenizer, context_len=512, model_dim=512, num_heads_dec=8, num_heads_enc=4, n_blocks=8,post_pre_norm=0):
-    decoder_cfg = DecoderConfig(
-        num_heads=num_heads_dec,
-        vocab_size=len(tokenizer),
-        embedding_size=model_dim,
-        max_seq_len=context_len,
-        atn_cfg=attnconfig(
-            model_dim, model_dim, model_dim, model_dim, num_heads_dec, False, context_len,
-             posn_class=PositionalVariant(1)
-        ),
-        mlp_depth=2,
-        attn_class=AttnVariant.FAST_MULTIHEADED,
-        post_pre_norm=post_pre_norm,
-    )
-    encoder_cfg = EncoderConfig(
-        num_heads=num_heads_enc,
-        vocab_size=len(tokenizer),
-        embedding_size=model_dim,
-        max_seq_len=context_len,
-        atn_cfg=attnconfig(
-            model_dim, model_dim, model_dim, model_dim, num_heads_dec, False, context_len,
-            posn_class=PositionalVariant(1)
-        ),
-        attn_class=AttnVariant.FAST_SELFMHA,
-        # pos_weight=0.2,
-        mlp_depth=2,
-        post_pre_norm=post_pre_norm,
-    )
+def build_configs(tokenizer, context_len=512, model_dim=512, num_heads_dec=4, num_heads_enc=4, n_blocks=8,post_pre_norm=0,
+                  posn_class:int=1,adding_padding:int=0,
+                  attn_class:AttnVariant=AttnVariant.FAST_MULTIHEADED,
+                  ):
+    if posn_class !=2:
+        decoder_cfg = DecoderConfig(
+            num_heads=num_heads_dec,
+            vocab_size=len(tokenizer),
+            embedding_size=model_dim,
+            max_seq_len=context_len,
+            atn_cfg=attnconfig(
+                model_dim, model_dim, model_dim, model_dim, num_heads_dec, False, context_len,
+                posn_class=PositionalVariant(1),adding_padding=1
+            ),
+            mlp_depth=2,
+            attn_class=AttnVariant.FAST_MULTIHEADED,
+            post_pre_norm=post_pre_norm,
+        )
+        encoder_cfg = EncoderConfig(
+            num_heads=num_heads_enc,
+            vocab_size=len(tokenizer),
+            embedding_size=model_dim,
+            max_seq_len=context_len,    
+            atn_cfg=attnconfig(
+                model_dim, model_dim, model_dim, model_dim, num_heads_dec, False, context_len,
+                posn_class=PositionalVariant(1),adding_padding=1
+            ),
+            attn_class=AttnVariant.FAST_SELFMHA,
+            # pos_weight=0.2,
+            mlp_depth=2,
+            post_pre_norm=post_pre_norm,
+        )
+    else:
+        decoder_cfg = DecoderConfig(
+            num_heads=num_heads_enc,
+            # vocab_size=len(dm.train_ds.dataset.tokenizer),
+            vocab_size=tokenizer.vocab_size,
+            
+            embedding_size=model_dim,
+            max_seq_len=context_len,
+            atn_cfg=attnconfig(query_dim=model_dim, key_dim=model_dim,value_dim= model_dim,model_dim= model_dim,
+                            n_heads=num_heads_enc,causal_mask= False,context_len= context_len,
+                            posn_class=PositionalVariant.NONE,posn_weight=0,adding_padding=adding_padding),
+            attn_class=AttnVariant.RELATIVE_PE,
+            # posn_class=PositionalVariant(1),
+            mlp_depth=2,
+            post_pre_norm=post_pre_norm
+        )
+        encoder_cfg = EncoderConfig(
+            num_heads=4,
+            # vocab_size=len(dm.train_ds.dataset.tokenizer),
+            vocab_size=tokenizer.vocab_size,
+            
+            embedding_size=model_dim, ## this the dimensions of the output of the encoder
+            max_seq_len=context_len,
+            atn_cfg=attnconfig(query_dim=model_dim,key_dim= model_dim,value_dim= model_dim,model_dim= model_dim,
+                            n_heads=num_heads_enc,causal_mask= False,context_len= context_len,
+                            posn_class=PositionalVariant.NONE,posn_weight=0,adding_padding=adding_padding),
+            # pos_weight=0.2,
+            mlp_depth=2,
+            attn_class=AttnVariant.RELATIVE_PE,  # Assuming 4 corresponds to a FastMHA variant
+            # posn_class=PositionalVariant(1),
+            post_pre_norm=post_pre_norm
+        )
     transformer_cfg = TransformerConfig(
         n_blocks=n_blocks,
         encoder_cfg=encoder_cfg,
@@ -284,6 +338,7 @@ def run_decode(
     device,
     max_new_tokens: int = 128,
     n_print_batches: int = 5,  # just for preview; BLEU is over the full dataset
+    adding_padding:int=0
     ):
     preds = []
     refs  = []
@@ -291,17 +346,15 @@ def run_decode(
 
     with tqdm(total=len(dataloader),desc="Running Inference: ") as pbar:
         for en_tokens, en_mask, fin_tokens, fin_mask in dataloader:
-            en_tokens = en_tokens.to(device)
-            en_mask = en_mask.to(device) if en_mask is not None else None
-
+            fin_tokens = fin_tokens.to(device)
+            fin_mask = fin_mask.to(device) if fin_mask is not None else None
+            # print(fin_mask,fin_mask.dtype)
             # Generate for the whole batch
-            gen_ids = generator.generate(en_tokens=en_tokens, en_mask=en_mask, max_new_tokens=max_new_tokens)  # [B, T_out]
-
-            # Collect texts for the whole batch
+            gen_ids = generator.generate(en_tokens=fin_tokens, en_mask=fin_mask, max_new_tokens=max_new_tokens,adding_padding=adding_padding)  # [B, T_out]
             B = gen_ids.size(0)
             for i in range(B):
                 gen_text = tokenizer.decode(gen_ids[i].tolist(), skip_special_tokens=True)
-                ref_text = tokenizer.decode(fin_tokens[i].tolist(), skip_special_tokens=True)
+                ref_text = tokenizer.decode(en_tokens[i].tolist(), skip_special_tokens=True)
                 preds.append(gen_text)
                 refs.append(ref_text)
 
@@ -312,36 +365,39 @@ def run_decode(
                 print("-" * 80)
                 printed += 1
             pbar.update(1)
+    metric = TE_BLEU(n_gram=4)
+    metric.update(preds, [[r] for r in refs])
+    out = metric.compute()
+    bleu = float(out.item() if hasattr(out, "item") else out)
+    print(bleu)
+    print(f"[BLEU-4] Corpus BLEU over entire dataset: {bleu:.4f}")
 
-    # -------- Corpus BLEU-4 over the entire dataset --------
-    bleu = None
-    try:
-        from torcheval.metrics.text import BLEUScore as TE_BLEU
-        metric = TE_BLEU(n_gram=4)
-        metric.update(preds, [[r] for r in refs])
-        out = metric.compute()
-        bleu = float(out.item() if hasattr(out, "item") else out)
-        src = "torcheval"
-    except Exception:
-        try:
-            import sacrebleu
-            bleu = sacrebleu.corpus_bleu(preds, [refs]).score / 100.0
-            src = "sacrebleu"
-        except Exception:
-            try:
-                from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
-                tok_preds = [p.split() for p in preds]
-                tok_refs  = [[r.split()] for r in refs]
-                bleu = corpus_bleu(tok_refs, tok_preds, smoothing_function=SmoothingFunction().method1)
-                src = "nltk"
-            except Exception:
-                src = None
-    if bleu is not None:
-        print(f"[BLEU-4] Corpus BLEU over entire dataset: {bleu:.4f}  (via {src})")
-    else:
-        print("WARNING: Could not compute corpus BLEU-4 (no compatible BLEU module found).")
 
     return {"bleu": bleu, "preds": preds, "refs": refs}
+import torch
+
+def pick_cuda_device(min_free_mem_gb: float = 0.0) -> torch.device:
+    if not torch.cuda.is_available():
+        return torch.device("cpu")
+
+    best_idx, best_free_gb = None, -1.0
+    for i in range(torch.cuda.device_count()):
+        # Query free/total memory on each device
+        with torch.cuda.device(i):
+            free_bytes, total_bytes = torch.cuda.mem_get_info()
+        free_gb = free_bytes / (1024 ** 3)
+
+        if free_gb > best_free_gb and free_gb >= min_free_mem_gb:
+            best_idx, best_free_gb = i, free_gb
+
+    if best_idx is None:
+        return torch.device("cpu")
+
+    torch.cuda.set_device(best_idx)  # set default CUDA device for new tensors
+    return torch.device(f"cuda:{best_idx}")
+
+# Usage
+
 
 
 def main():
@@ -352,9 +408,14 @@ def main():
     parser.add_argument("--model_dim", type=int, default=512)
     parser.add_argument("--num_heads_dec", type=int, default=8)
     parser.add_argument("--num_heads_enc", type=int, default=4)
-    parser.add_argument("--n_blocks", type=int, default=8)
+    parser.add_argument("--n_blocks", type=int, default=4)
     parser.add_argument("--post_pre_norm", type=int, default=1)
+    parser.add_argument('--posn_class', type=int,default=1,help="1: RoPE, 2: RelativePE")
+    parser.add_argument('--adding_padding',type=int,default=0,help="Argument to switch between adding or boolean masking padding. O for not adding. 1 for adding")
+    parser.add_argument('--attn_class',type=int,default=3,help="Whether to pad mask for keys only or full pad mask.")
+    parser.add_argument('--keys_only',type=int,default=1,help="Whether to pad mask for keys only or full pad mask.")
 
+    
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--n_batches", type=int, default=5)
     parser.add_argument("--max_new_tokens", type=int, default=128)
@@ -366,11 +427,13 @@ def main():
 
     args = parser.parse_args()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    # device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+    device = pick_cuda_device(min_free_mem_gb=2.0)  # e.g., require at least 2 GB free
+    print("Using device:", device)
     # Dataset
-    FullDataset = EnFinnishDataset(args.archive_path, context_len=args.context_len)
-    train_test = 0.8
+    FullDataset = CleanedEnFinnishDataset(args.archive_path, context_len=args.context_len,
+                                          adding_padding=args.adding_padding,keys_only=args.keys_only)
+    train_test = 0.999
     train_val=0.8
     ##same seed used at training.
     full_len = len(FullDataset)
@@ -394,7 +457,10 @@ def main():
         num_heads_dec=args.num_heads_dec,
         num_heads_enc=args.num_heads_enc,
         n_blocks=args.n_blocks,
-        post_pre_norm=args.post_pre_norm
+        post_pre_norm=args.post_pre_norm,
+        posn_class=args.posn_class,
+        adding_padding=args.adding_padding,
+        attn_class=args.attn_class
     )
 
     litmodel = Transformer.load_from_checkpoint(args.model_path, config=transformer_cfg)

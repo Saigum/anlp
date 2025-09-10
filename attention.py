@@ -190,6 +190,8 @@ class FastMHA(nn.Module):
             if(self.config.adding_padding):
                 As = As + padding_mask.unsqueeze(1)
             else:
+                # print(As.shape)
+                # print(padding_mask.shape)
                 As[padding_mask.unsqueeze(1).expand(-1,As.shape[1],-1,-1)] = -1e9
                 
                 
@@ -312,7 +314,8 @@ class RelativePEMHA(nn.Module):
             if(self.config.adding_padding):
                 As = As + padding_mask.unsqueeze(1)
             else:
-                
+                # print(As.shape)
+                # print(padding_mask.shape)
                 As[padding_mask.unsqueeze(1).expand(-1,As.shape[1],-1,-1)] = -1e9
                 
         if self.config.causal_mask:
