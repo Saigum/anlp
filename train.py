@@ -211,7 +211,7 @@ def train(args):
                             posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             attn_class=AttnVariant.FAST_MULTIHEADED,
             # posn_class=PositionalVariant(1),
-            mlp_depth=2,
+            mlp_depth=args.mlp_depth,
             post_pre_norm=args.post_pre_norm
         )
         encoder_cfg = EncoderConfig(
@@ -225,7 +225,7 @@ def train(args):
                             n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
                             posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             # pos_weight=0.2,
-            mlp_depth=2,
+            mlp_depth=args.mlp_depth,
             attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
             # posn_class=PositionalVariant(1),
             post_pre_norm=args.post_pre_norm
@@ -243,7 +243,7 @@ def train(args):
                             posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             attn_class=AttnVariant.RELATIVE_PE,
             # posn_class=PositionalVariant(1),
-            mlp_depth=2,
+            mlp_depth=args.mlp_depth,
             post_pre_norm=args.post_pre_norm
         )
         encoder_cfg = EncoderConfig(
@@ -257,7 +257,7 @@ def train(args):
                             n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
                             posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             # pos_weight=0.2,
-            mlp_depth=2,
+            mlp_depth=args.mlp_depth,
             attn_class=AttnVariant.RELATIVE_PE,  # Assuming 4 corresponds to a FastMHA variant
             # posn_class=PositionalVariant(1),
             post_pre_norm=args.post_pre_norm
@@ -328,6 +328,8 @@ if __name__ == "__main__":
     parser.add_argument('--post_pre_norm',type=int,default=0,help="Argument to switch between pre and post normalization.")
     parser.add_argument('--adding_padding',type=int,default=0,help="Argument to switch between adding or boolean masking padding. O for not adding. 1 for adding")
     parser.add_argument('--keys_only',type=int,default=1,help="Whether to pad mask for keys only or full pad mask.")
+    parser.add_argument('--mlp_depth',type=int,default=2,help="Whether to pad mask for keys only or full pad mask.")
+    
     # Training arguments
     parser.add_argument('--batch_size', type=int, default=8, help='Training batch size.')
     parser.add_argument('--devices', type=int, default=1, help='Number of devices (GPUs/CPUs) to use.')
