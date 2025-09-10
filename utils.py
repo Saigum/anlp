@@ -135,14 +135,14 @@ class CleanedEnFinnishDataset(Dataset):
         
         if (os.path.exists(os.path.join(archive_path, "en_tokens.pk")) and 
             os.path.exists(os.path.join(archive_path, "fi_tokens.pk"))):
-            # with open(os.path.join(archive_path, "en_tokens.pk"), "rb") as f:
-            #     self.en_ids = pk.load(f)
-            # with open(os.path.join(archive_path, "fi_tokens.pk"), "rb") as f:
-            #     self.fi_ids = pk.load(f)
-            with open(os.path.join(archive_path, "EUbookshop.en"), 'r') as fp:
-                en_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
-            with open(os.path.join(archive_path, "EUbookshop.fi"), 'r') as fp:
-                fi_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
+            with open(os.path.join(archive_path, "en_tokens.pk"), "rb") as f:
+                self.en_ids = pk.load(f)
+            with open(os.path.join(archive_path, "fi_tokens.pk"), "rb") as f:
+                self.fi_ids = pk.load(f)
+            # with open(os.path.join(archive_path, "EUbookshop.en"), 'r') as fp:
+            #     en_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
+            # with open(os.path.join(archive_path, "EUbookshop.fi"), 'r') as fp:
+            #     fi_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
 
 
             # self.tokenizer = AutoTokenizer.from_pretrained(
@@ -157,10 +157,16 @@ class CleanedEnFinnishDataset(Dataset):
             return
         
         # --- Load raw lines ---
-        with open(os.path.join(archive_path, "EUbookshop.en")) as fp:
-            en_lines = [l.strip() for l in fp.readlines()]
-        with open(os.path.join(archive_path, "EUbookshop.fi")) as fp:
-            fi_lines = [l.strip() for l in fp.readlines()]
+        
+        with open(os.path.join(archive_path, "EUbookshop.en"), 'r') as fp:
+            en_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
+        with open(os.path.join(archive_path, "EUbookshop.fi"), 'r') as fp:
+            fi_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
+            
+        # with open(os.path.join(archive_path, "EUbookshop.en")) as fp:
+        #     en_lines = [l.strip() for l in fp.readlines()]
+        # with open(os.path.join(archive_path, "EUbookshop.fi")) as fp:
+        #     fi_lines = [l.strip() for l in fp.readlines()]
 
         N = min(len(en_lines), len(fi_lines))
         en_lines, fi_lines = en_lines[:N], fi_lines[:N]
