@@ -63,7 +63,7 @@ class Transformer(lightning.LightningModule):
         en_tokens,en_mask,fin_tokens,fin_mask = batch
         
         # probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
-        probs = self(en_tokens,fin_tokens,en_mask,fin_mask)
+        probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
         
         
         probs = probs[...,:-1,:].reshape(-1,probs.shape[-1]) ## last dim is of size vocab_size, So now (batch x num_tokens), vocab_size tensor. (2-D) tensor
@@ -74,7 +74,9 @@ class Transformer(lightning.LightningModule):
     
     def validation_step(self,batch,batch_idx):
         en_tokens,en_mask,fin_tokens,fin_mask = batch
-        probs = self(en_tokens,fin_tokens,en_mask,fin_mask)  
+        
+        # probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
+        probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
         # probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
         ## to not give it the last token, which i want it to predict.
         probs = probs[...,:-1,:].reshape(-1,probs.shape[-1]) ## last dim is of size vocab_size, So now (batch x num_tokens), vocab_size tensor. (2-D) tensor
@@ -200,7 +202,8 @@ def train(args):
     if args.posn_class != 2:
         decoder_cfg = DecoderConfig(
             num_heads=NUM_HEADS,
-            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            # vocab_size=len(dm.train_ds.dataset.tokenizer),
+            vocab_size=dm.train_ds.dataset.tokenizer.vocab_size,
             embedding_size=MODEL_DIM,
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
@@ -213,7 +216,9 @@ def train(args):
         )
         encoder_cfg = EncoderConfig(
             num_heads=4,
-            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            # vocab_size=len(dm.train_ds.dataset.tokenizer),
+            vocab_size=dm.train_ds.dataset.tokenizer.vocab_size,
+            
             embedding_size=MODEL_DIM, ## this the dimensions of the output of the encoder
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
@@ -228,7 +233,9 @@ def train(args):
     elif args.posn_class == 2:
         decoder_cfg = DecoderConfig(
             num_heads=NUM_HEADS,
-            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            # vocab_size=len(dm.train_ds.dataset.tokenizer),
+            vocab_size=dm.train_ds.dataset.tokenizer.vocab_size,
+            
             embedding_size=MODEL_DIM,
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
@@ -241,7 +248,9 @@ def train(args):
         )
         encoder_cfg = EncoderConfig(
             num_heads=4,
-            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            # vocab_size=len(dm.train_ds.dataset.tokenizer),
+            vocab_size=dm.train_ds.dataset.tokenizer.vocab_size,
+            
             embedding_size=MODEL_DIM, ## this the dimensions of the output of the encoder
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,

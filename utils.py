@@ -139,9 +139,10 @@ class CleanedEnFinnishDataset(Dataset):
                 self.en_ids = pk.load(f)
             with open(os.path.join(archive_path, "fi_tokens.pk"), "rb") as f:
                 self.fi_ids = pk.load(f)
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                "Helsinki-NLP/opus-mt-en-fi"
-            )
+            # self.tokenizer = AutoTokenizer.from_pretrained(
+            #     "Helsinki-NLP/opus-mt-en-fi"
+            # )
+            self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
             assert self.tokenizer.pad_token_id is not None, "Tokenizer needs a pad_token_id."
             PAD = self.tokenizer.pad_token_id
             print("special_tokens_map:", self.tokenizer.special_tokens_map)
