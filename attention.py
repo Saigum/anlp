@@ -6,7 +6,7 @@ import numpy as np
 from typing import Optional,Sequence
 from torch import Tensor
 from enum import Enum
-
+from copy import deepcopy
     
 class PositionalVariant(Enum):
     ROPE=1
@@ -97,6 +97,7 @@ class AttnVariant(Enum):
     MASKED_SLOW_MULTIHEADED=2
     FAST_MULTIHEADED=3
     FAST_SELFMHA=4
+    RELATIVE_PE=5
 
 def make_attention(attn_class:AttnVariant,atn_config:attnconfig):
     if attn_class == AttnVariant.SLOW_MULTIHEADED:
@@ -107,6 +108,10 @@ def make_attention(attn_class:AttnVariant,atn_config:attnconfig):
         return FastMHA(config=atn_config)
     elif attn_class == AttnVariant.FAST_SELFMHA:
         return FastSelfAttn(config=atn_config)
+    elif attn_class == AttnVariant.FAST_SELFMHA:
+        nope_config = deepcopy(atn_config)
+        nope_config.posn_class = PositionalVariant.NONE
+        return RelativePEMHA(config=nope_config)
     else:
         raise
     
@@ -274,11 +279,22 @@ class RelativePEMHA(nn.Module):
         Ks = Ks.reshape(Ks.shape[0],n_heads,Ks.shape[1],self.config.model_dim//n_heads)
         Vs = Vs.reshape(Vs.shape[0],n_heads,Vs.shape[1],self.config.model_dim//n_heads)
        ####positional embeddings#############
-        Srel = torch.matmul(Qs,self.R[torch.arange(start=-Qs.shape[2],end=Qs.shape[0])]) ## this is of shape num_tokens,2*num_tokens-1
-        
+       ## the main idea of relative pe is to have scalar embeddings for each distance between each position pair in the attention matrix.
+       ## so you end up having L x L embeddings that look like:
+       ## [[0,1,2,3],[-1,0,1,2] ... ] and so on, its a relative embedding. 
+       
+       ## So Srel here is a matrix for all position pair differences, even invalid ones, the first row has from -L to l, even thought theres nothing.
+       ## that token 1 can refer to as negative.
+       ## For each token, we want to take [i,0-i:0+L-i] for the ith token as a relative embedding.
+        B, H, L, d = Qs.shape
+        Srel = torch.matmul(Qs,self.R) ## this is of shape num_tokens,2*num_tokens-1
+        Srel = torch.nn.functional.pad(Srel,pad=[1,0]) ## pad a 
+        Srel = Srel.view(B, H, 2*L, L)
+        Srel = Srel[:, :, 1:L+1, :]     
         
         #################################
-        As = torch.matmul(Qs,Ks.mT)/np.sqrt(Qs.shape[-1])
+        As = torch.matmul(Qs,Ks.mT)/np.sqrt(Qs.shape[-1]) + Srel
+        
         if padding_mask is not None:
             ## padding mask is to be the same shape as the Attention Tensor
             # print(f"Shape of attention matrixL {As.shape}")
