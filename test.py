@@ -5,6 +5,8 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import Optional
 from torch.utils.data import DataLoader
+from torch import Generator
+from torch.utils.data import random_split
 
 # Your imports
 from train import Transformer, TransformerConfig
@@ -18,7 +20,6 @@ class Strategies(Enum):
     Greedy = "greedy"
     TopK = "topk"
     Beam = "beam"
-
 
 class AutoRegressiveGenerator(nn.Module):
     def __init__(self, *, tokenizer, model, eos_token_id: Optional[int] = None, context_len: int = 512):
@@ -60,7 +61,10 @@ class AutoRegressiveGenerator(nn.Module):
 
         steps = min(max_new_tokens, self.context_len - 1)
         for i in range(1, steps + 1):
-            fin_mask = self.return_masks(i)
+            fin_mask = self.return_masks(i).unsqueeze(0)
+            # print(f"Shape of en_tokens:{en_tokens.shape}")
+            # print(f"Shape of en_mask:{en_mask.shape}")
+
             logits = self.model(en_tokens, fin_tokens, en_mask, fin_mask)  # [B, T, V]
             logits_last = logits[:, i, :]                                   # [B, V]
 
@@ -225,7 +229,7 @@ class BeamSearchDecoding(AutoRegressiveGenerator):
         return best_tokens
 
 
-def build_configs(tokenizer, context_len=512, model_dim=512, num_heads_dec=8, num_heads_enc=4, n_blocks=8):
+def build_configs(tokenizer, context_len=512, model_dim=512, num_heads_dec=8, num_heads_enc=4, n_blocks=8,post_pre_norm=0):
     decoder_cfg = DecoderConfig(
         num_heads=num_heads_dec,
         vocab_size=len(tokenizer),
@@ -233,9 +237,11 @@ def build_configs(tokenizer, context_len=512, model_dim=512, num_heads_dec=8, nu
         max_seq_len=context_len,
         atn_cfg=attnconfig(
             model_dim, model_dim, model_dim, model_dim, num_heads_dec, False, context_len,
-            attn_class=AttnVariant.FAST_MULTIHEADED, posn_class=PositionalVariant(1)
+             posn_class=PositionalVariant(1)
         ),
-        post_pre_norm=0,
+        mlp_depth=2,
+        attn_class=AttnVariant.FAST_MULTIHEADED,
+        post_pre_norm=post_pre_norm,
     )
     encoder_cfg = EncoderConfig(
         num_heads=num_heads_enc,
@@ -244,10 +250,12 @@ def build_configs(tokenizer, context_len=512, model_dim=512, num_heads_dec=8, nu
         max_seq_len=context_len,
         atn_cfg=attnconfig(
             model_dim, model_dim, model_dim, model_dim, num_heads_dec, False, context_len,
-            attn_class=AttnVariant(4), posn_class=PositionalVariant(1)
+            posn_class=PositionalVariant(1)
         ),
-        pos_weight=0.2,
+        attn_class=AttnVariant.FAST_SELFMHA,
+        # pos_weight=0.2,
         mlp_depth=2,
+        post_pre_norm=post_pre_norm,
     )
     transformer_cfg = TransformerConfig(
         n_blocks=n_blocks,
@@ -267,40 +275,89 @@ def choose_generator(strategy: Strategies, tokenizer, model, context_len: int, t
         return BeamSearchDecoding(tokenizer=tokenizer, model=model, beam_size=beam, alpha=alpha, context_len=context_len)
     raise ValueError(f"Unknown strategy: {strategy}")
 
-
+from tqdm import tqdm
 @torch.no_grad()
-def run_decode(generator: AutoRegressiveGenerator, dataloader: DataLoader, tokenizer, device, max_new_tokens=128, n_batches=5):
-    seen = 0
-    for en_tokens, en_mask, fin_tokens, fin_mask in dataloader:
-        en_tokens = en_tokens.to(device)
-        en_mask = en_mask.to(device) if en_mask is not None else None
+def run_decode(
+    generator: AutoRegressiveGenerator,
+    dataloader: DataLoader,
+    tokenizer,
+    device,
+    max_new_tokens: int = 128,
+    n_print_batches: int = 5,  # just for preview; BLEU is over the full dataset
+    ):
+    preds = []
+    refs  = []
+    printed = 0
 
-        gen_ids = generator.generate(en_tokens=en_tokens, en_mask=en_mask, max_new_tokens=max_new_tokens)  # [B, T_out]
-        gen_text = tokenizer.decode(gen_ids[0].tolist(), skip_special_tokens=True)
-        ref_text = tokenizer.decode(fin_tokens[0].tolist(), skip_special_tokens=True)
+    with tqdm(total=len(dataloader),desc="Running Inference: ") as pbar:
+        for en_tokens, en_mask, fin_tokens, fin_mask in dataloader:
+            en_tokens = en_tokens.to(device)
+            en_mask = en_mask.to(device) if en_mask is not None else None
 
-        print(f"Machine translated output: {gen_text}")
-        print(f"Original output: {ref_text}")
-        print("-" * 80)
+            # Generate for the whole batch
+            gen_ids = generator.generate(en_tokens=en_tokens, en_mask=en_mask, max_new_tokens=max_new_tokens)  # [B, T_out]
 
-        seen += 1
-        if seen >= n_batches:
-            break
+            # Collect texts for the whole batch
+            B = gen_ids.size(0)
+            for i in range(B):
+                gen_text = tokenizer.decode(gen_ids[i].tolist(), skip_special_tokens=True)
+                ref_text = tokenizer.decode(fin_tokens[i].tolist(), skip_special_tokens=True)
+                preds.append(gen_text)
+                refs.append(ref_text)
+
+            # Print a few samples for inspection
+            if printed < n_print_batches:
+                print(f"Machine translated output: {preds[-B]}")
+                print(f"Original output:           {refs[-B]}")
+                print("-" * 80)
+                printed += 1
+            pbar.update(1)
+
+    # -------- Corpus BLEU-4 over the entire dataset --------
+    bleu = None
+    try:
+        from torcheval.metrics.text import BLEUScore as TE_BLEU
+        metric = TE_BLEU(n_gram=4)
+        metric.update(preds, [[r] for r in refs])
+        out = metric.compute()
+        bleu = float(out.item() if hasattr(out, "item") else out)
+        src = "torcheval"
+    except Exception:
+        try:
+            import sacrebleu
+            bleu = sacrebleu.corpus_bleu(preds, [refs]).score / 100.0
+            src = "sacrebleu"
+        except Exception:
+            try:
+                from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
+                tok_preds = [p.split() for p in preds]
+                tok_refs  = [[r.split()] for r in refs]
+                bleu = corpus_bleu(tok_refs, tok_preds, smoothing_function=SmoothingFunction().method1)
+                src = "nltk"
+            except Exception:
+                src = None
+    if bleu is not None:
+        print(f"[BLEU-4] Corpus BLEU over entire dataset: {bleu:.4f}  (via {src})")
+    else:
+        print("WARNING: Could not compute corpus BLEU-4 (no compatible BLEU module found).")
+
+    return {"bleu": bleu, "preds": preds, "refs": refs}
 
 
 def main():
     parser = argparse.ArgumentParser(description="En→Fi decoding with Greedy/TopK/Beam.")
-    parser.add_argument("--archive-path", type=str, default="/kaggle/input/eng-fin-translation-dataset")
-    parser.add_argument("--model-path", type=str, default="/kaggle/input/my_model/pytorch/2b/1/best-model-epoch16-val_loss5.45.ckpt")
-    parser.add_argument("--context-len", type=int, default=512)
-    parser.add_argument("--model-dim", type=int, default=512)
-    parser.add_argument("--num-heads-dec", type=int, default=8)
-    parser.add_argument("--num-heads-enc", type=int, default=4)
-    parser.add_argument("--n-blocks", type=int, default=8)
+    parser.add_argument("--archive_path", type=str, default="/kaggle/input/eng-fin-translation-dataset")
+    parser.add_argument("--model_path", type=str, default="/kaggle/input/my_model/pytorch/2b/1/best-model-epoch16-val_loss5.45.ckpt")
+    parser.add_argument("--context_len", type=int, default=512)
+    parser.add_argument("--model_dim", type=int, default=512)
+    parser.add_argument("--num_heads_dec", type=int, default=8)
+    parser.add_argument("--num_heads_enc", type=int, default=4)
+    parser.add_argument("--n_blocks", type=int, default=8)
+    parser.add_argument("--post_pre_norm", type=int, default=1)
 
-    parser.add_argument("--batch-size", type=int, default=1)
-    parser.add_argument("--n-batches", type=int, default=5)
-    parser.add_argument("--max-new-tokens", type=int, default=128)
+    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--n_batches", type=int, default=5)
+    parser.add_argument("--max_new_tokens", type=int, default=128)
 
     parser.add_argument("--strategy", type=str, choices=[s.value for s in Strategies], default="greedy")
     parser.add_argument("--topk", type=int, default=50)
@@ -313,16 +370,31 @@ def main():
 
     # Dataset
     FullDataset = EnFinnishDataset(args.archive_path, context_len=args.context_len)
-    dataloader = DataLoader(FullDataset, batch_size=args.batch_size, shuffle=False)
+    train_test = 0.8
+    train_val=0.8
+    ##same seed used at training.
+    full_len = len(FullDataset)
+    train_len = int(train_test * full_len)
+    test_len = full_len - train_len
+    val_len = int((1-train_val) * train_len)
+    train_len = train_len - val_len
+    generator = Generator().manual_seed(42)
+    train_ds, val_ds, test_ds = random_split(
+        FullDataset,
+        [train_len, val_len, test_len],
+        generator=generator
+    )
+    dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
     # Configs + model
     transformer_cfg = build_configs(
         tokenizer=FullDataset.tokenizer,
         context_len=args.context_len,
         model_dim=args.model_dim,
-        num_heads_dec=args.num_heads-dec if hasattr(args, "num_heads-dec") else args.num_heads_dec,
+        num_heads_dec=args.num_heads_dec,
         num_heads_enc=args.num_heads_enc,
         n_blocks=args.n_blocks,
+        post_pre_norm=args.post_pre_norm
     )
 
     litmodel = Transformer.load_from_checkpoint(args.model_path, config=transformer_cfg)
@@ -348,7 +420,7 @@ def main():
         tokenizer=FullDataset.tokenizer,
         device=device,
         max_new_tokens=args.max_new_tokens,
-        n_batches=args.n_batches,
+        n_print_batches=args.n_batches,
     )
 
 

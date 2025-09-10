@@ -90,6 +90,7 @@ class attnconfig:
     context_len:int=512
     posn_class:PositionalVariant = PositionalVariant.ROPE
     posn_weight:float=0.2
+    adding_padding:int=0
     
     
 class AttnVariant(Enum):
@@ -108,7 +109,7 @@ def make_attention(attn_class:AttnVariant,atn_config:attnconfig):
         return FastMHA(config=atn_config)
     elif attn_class == AttnVariant.FAST_SELFMHA:
         return FastSelfAttn(config=atn_config)
-    elif attn_class == AttnVariant.FAST_SELFMHA:
+    elif attn_class == AttnVariant.RELATIVE_PE:
         nope_config = deepcopy(atn_config)
         nope_config.posn_class = PositionalVariant.NONE
         return RelativePEMHA(config=nope_config)
@@ -185,7 +186,13 @@ class FastMHA(nn.Module):
         if padding_mask is not None:
             ## padding mask is to be the same shape as the Attention Tensor
             # print(f"Shape of attention matrixL {As.shape}")
-            As = As + padding_mask.unsqueeze(1)
+            # print(f"Shape of padding mask is {padding_mask.shape}")
+            if(self.config.adding_padding):
+                As = As + padding_mask.unsqueeze(1)
+            else:
+                As[padding_mask.unsqueeze(1).expand(-1,As.shape[1],-1,-1)] = -1e9
+                
+                
         if self.config.causal_mask:
             As[...,self.triu_indices[0],self.triu_indices[1]]  = -1e9
         
@@ -237,7 +244,11 @@ class FastSelfAttn(nn.Module):
         if padding_mask is not None:
             # print(f"Shape of padding mask : {padding_mask.shape}")
             # print(f"Shape of Attention Matrix {As.shape}")
-            As = As + padding_mask.unsqueeze(1) ## to account for Attention matrix being batch, n_heads, num_tokens, num_tokens
+            if(self.config.adding_padding):
+                As = As + padding_mask.unsqueeze(1)
+            else:
+                As[padding_mask.unsqueeze(1).expand(-1,As.shape[1],-1,-1)] = -1e9
+            # As = As + padding_mask.unsqueeze(1) ## to account for Attention matrix being batch, n_heads, num_tokens, num_tokens
         if( self.config.causal_mask):
             As[...,self.triu_indices[0],self.triu_indices[1]]  = -1e9
         # print(f"Are there Nans in As before softmax {torch.isnan(As).sum()}")
@@ -296,9 +307,14 @@ class RelativePEMHA(nn.Module):
         As = torch.matmul(Qs,Ks.mT)/np.sqrt(Qs.shape[-1]) + Srel
         
         if padding_mask is not None:
-            ## padding mask is to be the same shape as the Attention Tensor
-            # print(f"Shape of attention matrixL {As.shape}")
-            As = As + padding_mask.unsqueeze(1)
+            # print(f"Shape of padding mask : {padding_mask.shape}")
+            # print(f"Shape of Attention Matrix {As.shape}")
+            if(self.config.adding_padding):
+                As = As + padding_mask.unsqueeze(1)
+            else:
+                
+                As[padding_mask.unsqueeze(1).expand(-1,As.shape[1],-1,-1)] = -1e9
+                
         if self.config.causal_mask:
             As[...,self.triu_indices[0],self.triu_indices[1]]  = -1e9
         

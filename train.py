@@ -184,7 +184,7 @@ class Transformer(lightning.LightningModule):
 
 
 def train(args):
-    dmconfig= DataModuleConfig(archive_path=args.archive_path,batch_size=args.batch_size,train_test=args.train_test,train_val=args.train_val,context_len=args.context_len)
+    dmconfig= DataModuleConfig(archive_path=args.archive_path,batch_size=args.batch_size,train_test=args.train_test,train_val=args.train_val,context_len=args.context_len,clean=args.clean_dataset)
     dm = EnFinDataModule(dmconfig)
     dm.setup("fit")
     NUM_HEADS = args.num_heads  
@@ -198,7 +198,7 @@ def train(args):
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
                             n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
-                            posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
+                            posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             attn_class=AttnVariant.FAST_MULTIHEADED,
             # posn_class=PositionalVariant(1),
             mlp_depth=2,
@@ -211,7 +211,7 @@ def train(args):
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
                             n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
-                            posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
+                            posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             # pos_weight=0.2,
             mlp_depth=2,
             attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
@@ -226,7 +226,7 @@ def train(args):
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
                             n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
-                            posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight),
+                            posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             attn_class=AttnVariant.RELATIVE_PE,
             # posn_class=PositionalVariant(1),
             mlp_depth=2,
@@ -239,7 +239,7 @@ def train(args):
             max_seq_len=CONTEXT_LEN,
             atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
                             n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
-                            posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight),
+                            posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight,adding_padding=args.adding_padding),
             # pos_weight=0.2,
             mlp_depth=2,
             attn_class=AttnVariant.RELATIVE_PE,  # Assuming 4 corresponds to a FastMHA variant
@@ -284,7 +284,7 @@ def train(args):
         
         # track_grad_norm=2,       
     )
-    save_dataclass_config(transformer_cfg=transformer_cfg)
+    # save_dataclass_config(transformer_cfg=transformer_cfg)
     
     trainer.fit(model=TransformerModel,
                 datamodule=dm,
@@ -297,6 +297,7 @@ if __name__ == "__main__":
     # Data arguments
     parser.add_argument('--archive_path', type=str, required=True, help='Path to the data archive file.')
     parser.add_argument('--checkpoint_path', type=str, default='./checkpoints', help='Directory to save model checkpoints.')
+    parser.add_argument('--clean_dataset',type=int,default=0,help="Whether to clean dataset before training or not.")
     
     # Model Hyperparameters
     parser.add_argument('--context_len', type=int, default=512, help='Maximum sequence length for the model.')
@@ -306,6 +307,7 @@ if __name__ == "__main__":
     parser.add_argument('--posn_class', type=int,default=1,help="1: RoPE, 2: RelativePE")
     parser.add_argument('--posn_weight',type=float,default=0.2,help="Weight of Positional Embedding to QKV matrices")
     parser.add_argument('--post_pre_norm',type=int,default=0,help="Argument to switch between pre and post normalization.")
+    parser.add_argument('--adding_padding',type=int,default=0,help="Argument to switch between adding or boolean masking padding. O for not adding. 1 for adding")
 
     # Training arguments
     parser.add_argument('--batch_size', type=int, default=8, help='Training batch size.')
