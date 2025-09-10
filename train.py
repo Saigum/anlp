@@ -13,6 +13,27 @@ from lightning.pytorch.callbacks import EarlyStopping,ModelCheckpoint,RichModelS
 from lightning.pytorch.loggers import WandbLogger
 import argparse 
 from torcheval.metrics.text import BLEUScore
+from dataclasses import asdict
+import json
+from pathlib import Path
+from datetime import datetime
+
+def save_dataclass_config(transformer_cfg, out_dir="./configs"):
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    fname = f"transformer-config-{ts}.json"
+    fpath = out_path / fname
+
+    # Serialize dataclass to dict (recursively handles nested dataclasses)
+    cfg_dict = asdict(transformer_cfg)
+
+    with open(fpath, "w") as f:
+        json.dump(cfg_dict, f, indent=2, sort_keys=True)
+
+    print(f"[config] wrote dataclass config to: {fpath}")
+    return str(fpath)
+
 @dataclass 
 class TransformerConfig:
     encoder_cfg:EncoderConfig
@@ -169,34 +190,62 @@ def train(args):
     NUM_HEADS = args.num_heads  
     MODEL_DIM=args.model_dim
     CONTEXT_LEN = args.context_len
-    
-    decoder_cfg = DecoderConfig(
-        num_heads=NUM_HEADS,
-        vocab_size=len(dm.train_ds.dataset.tokenizer),
-        embedding_size=MODEL_DIM,
-        max_seq_len=CONTEXT_LEN,
-        atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
-                           n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
-                           posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
-        attn_class=AttnVariant.FAST_MULTIHEADED,
-        # posn_class=PositionalVariant(1),
-        mlp_depth=2,
-        post_pre_norm=args.post_pre_norm
-    )
-    encoder_cfg = EncoderConfig(
-        num_heads=4,
-        vocab_size=len(dm.train_ds.dataset.tokenizer),
-        embedding_size=MODEL_DIM, ## this the dimensions of the output of the encoder
-        max_seq_len=CONTEXT_LEN,
-        atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
-                           n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
-                           posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
-        # pos_weight=0.2,
-        mlp_depth=2,
-        attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
-        # posn_class=PositionalVariant(1),
-        post_pre_norm=args.post_pre_norm
-    )
+    if args.posn_class != 2:
+        decoder_cfg = DecoderConfig(
+            num_heads=NUM_HEADS,
+            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            embedding_size=MODEL_DIM,
+            max_seq_len=CONTEXT_LEN,
+            atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
+                            n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
+                            posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
+            attn_class=AttnVariant.FAST_MULTIHEADED,
+            # posn_class=PositionalVariant(1),
+            mlp_depth=2,
+            post_pre_norm=args.post_pre_norm
+        )
+        encoder_cfg = EncoderConfig(
+            num_heads=4,
+            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            embedding_size=MODEL_DIM, ## this the dimensions of the output of the encoder
+            max_seq_len=CONTEXT_LEN,
+            atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
+                            n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
+                            posn_class=PositionalVariant(args.posn_class),posn_weight=args.posn_weight),
+            # pos_weight=0.2,
+            mlp_depth=2,
+            attn_class=AttnVariant(4),  # Assuming 4 corresponds to a FastMHA variant
+            # posn_class=PositionalVariant(1),
+            post_pre_norm=args.post_pre_norm
+        )
+    elif args.posn_class == 2:
+        decoder_cfg = DecoderConfig(
+            num_heads=NUM_HEADS,
+            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            embedding_size=MODEL_DIM,
+            max_seq_len=CONTEXT_LEN,
+            atn_cfg=attnconfig(query_dim=MODEL_DIM, key_dim=MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
+                            n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
+                            posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight),
+            attn_class=AttnVariant.RELATIVE_PE,
+            # posn_class=PositionalVariant(1),
+            mlp_depth=2,
+            post_pre_norm=args.post_pre_norm
+        )
+        encoder_cfg = EncoderConfig(
+            num_heads=4,
+            vocab_size=len(dm.train_ds.dataset.tokenizer),
+            embedding_size=MODEL_DIM, ## this the dimensions of the output of the encoder
+            max_seq_len=CONTEXT_LEN,
+            atn_cfg=attnconfig(query_dim=MODEL_DIM,key_dim= MODEL_DIM,value_dim= MODEL_DIM,model_dim= MODEL_DIM,
+                            n_heads=NUM_HEADS,causal_mask= False,context_len= CONTEXT_LEN,
+                            posn_class=PositionalVariant.NONE,posn_weight=args.posn_weight),
+            # pos_weight=0.2,
+            mlp_depth=2,
+            attn_class=AttnVariant.RELATIVE_PE,  # Assuming 4 corresponds to a FastMHA variant
+            # posn_class=PositionalVariant(1),
+            post_pre_norm=args.post_pre_norm
+        )
     transformer_cfg = TransformerConfig(
         n_blocks=args.n_blocks,
         encoder_cfg=encoder_cfg,
@@ -235,6 +284,8 @@ def train(args):
         
         # track_grad_norm=2,       
     )
+    save_dataclass_config(transformer_cfg=transformer_cfg)
+    
     trainer.fit(model=TransformerModel,
                 datamodule=dm,
                 )
