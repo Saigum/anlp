@@ -67,7 +67,7 @@ class Transformer(lightning.LightningModule):
         
         
         probs = probs[...,:-1,:].reshape(-1,probs.shape[-1]) ## last dim is of size vocab_size, So now (batch x num_tokens), vocab_size tensor. (2-D) tensor
-        loss = self.loss(probs,fin_tokens[:,1:].reshape(-1)) ## this will now be batch_size x sequence_length long; (1-D) tensor
+        loss = self.loss(probs,en_tokens[:,1:].reshape(-1)) ## this will now be batch_size x sequence_length long; (1-D) tensor
     ## Start from token 2 onwards, as i want it to predict these tokens, and drop the last logit, as i dont care for the output given the entire sequence
         self.log("train_loss", loss, prog_bar=True,on_step=True,on_epoch=True)
         return loss
