@@ -61,7 +61,11 @@ class Transformer(lightning.LightningModule):
         return decoder_output
     def training_step(self,batch,batch_idx):
         en_tokens,en_mask,fin_tokens,fin_mask = batch
+        
+        # probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
         probs = self(en_tokens,fin_tokens,en_mask,fin_mask)
+        
+        
         probs = probs[...,:-1,:].reshape(-1,probs.shape[-1]) ## last dim is of size vocab_size, So now (batch x num_tokens), vocab_size tensor. (2-D) tensor
         loss = self.loss(probs,fin_tokens[:,1:].reshape(-1)) ## this will now be batch_size x sequence_length long; (1-D) tensor
     ## Start from token 2 onwards, as i want it to predict these tokens, and drop the last logit, as i dont care for the output given the entire sequence
@@ -70,7 +74,9 @@ class Transformer(lightning.LightningModule):
     
     def validation_step(self,batch,batch_idx):
         en_tokens,en_mask,fin_tokens,fin_mask = batch
-        probs = self(en_tokens,fin_tokens,en_mask,fin_mask)  ## to not give it the last token, which i want it to predict.
+        probs = self(en_tokens,fin_tokens,en_mask,fin_mask)  
+        # probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
+        ## to not give it the last token, which i want it to predict.
         probs = probs[...,:-1,:].reshape(-1,probs.shape[-1]) ## last dim is of size vocab_size, So now (batch x num_tokens), vocab_size tensor. (2-D) tensor
         val_loss = self.loss(probs,fin_tokens[:,1:].reshape(-1)) ## this will now be batch_size x sequence_length long; (1-D) tensor
         
@@ -282,6 +288,9 @@ def train(args):
         logger= wandb_logger,   
         callbacks=[early_stopping,model_checkpoint],
         log_every_n_steps=10,
+        gradient_clip_val=1.0,
+        gradient_clip_algorithm="norm",
+        # accumulate_grad_batches=6,
         
         # track_grad_norm=2,       
     )

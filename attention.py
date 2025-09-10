@@ -298,7 +298,7 @@ class RelativePEMHA(nn.Module):
        ## that token 1 can refer to as negative.
        ## For each token, we want to take [i,0-i:0+L-i] for the ith token as a relative embedding.
         B, H, L, d = Qs.shape
-        Srel = torch.matmul(Qs,self.R) ## this is of shape num_tokens,2*num_tokens-1
+        Srel = torch.matmul(Qs,self.R.weight.T) ## this is of shape num_tokens,2*num_tokens-1
         Srel = torch.nn.functional.pad(Srel,pad=[1,0]) ## pad a 
         Srel = Srel.view(B, H, 2*L, L)
         Srel = Srel[:, :, 1:L+1, :]     

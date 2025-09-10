@@ -34,7 +34,8 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         with open(os.path.join(archive_path,"EUbookshop.fi")) as fp:
             self.finnish_corpus = fp.readlines()
         
-        self.tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fi")
+        # self.tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fi")
+        self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
         print(self.tokenizer.special_tokens_map)
         # self.tokenizer = GPT2Tokenizer.from_pretrained("openai-community/gpt2")
         # self.tokenizer.add_special_tokens({"bos_token": "<bos>"})        
@@ -156,9 +157,11 @@ class CleanedEnFinnishDataset(Dataset):
 
         N = min(len(en_lines), len(fi_lines))
         en_lines, fi_lines = en_lines[:N], fi_lines[:N]
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            "Helsinki-NLP/opus-mt-en-fi"
-        )
+        # self.tokenizer = AutoTokenizer.from_pretrained(
+        #     "Helsinki-NLP/opus-mt-en-fi"
+        # )
+        self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
+        
         assert self.tokenizer.pad_token_id is not None, "Tokenizer needs a pad_token_id."
         PAD = self.tokenizer.pad_token_id
         def tok_len(txt: str) -> int:
