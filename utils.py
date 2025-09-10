@@ -56,7 +56,7 @@ class EnFinnishDataset(torch.utils.data.Dataset):
         return pad_masks
     def __getitem__(self, index):
         en_tokens = torch.tensor(self.tokenizer(self.english_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
-        finnish_tokens = torch.tensor([self.tokenizer.bos_token_id] + self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len-1,truncation=True)["input_ids"])
+        finnish_tokens = torch.tensor(self.tokenizer(self.finnish_corpus[index],padding="max_length",max_length=self.context_len,truncation=True)["input_ids"])
         ## for teacher forcing 
         en_pad_indices = torch.where(en_tokens==self.tokenizer.pad_token_id)[0]
         en_pad_index = en_pad_indices[0] if len(en_pad_indices) >0 else self.context_len

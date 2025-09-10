@@ -72,20 +72,35 @@ class Transformer(lightning.LightningModule):
         self.log("train_loss", loss, prog_bar=True,on_step=True,on_epoch=True)
         return loss
     
-    def validation_step(self,batch,batch_idx):
-        en_tokens,en_mask,fin_tokens,fin_mask = batch
+    def validation_step(self, batch, batch_idx):
+        en_tokens, en_mask, fin_tokens, fin_mask = batch
         
-        # probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
-        probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
-        # probs = self(fin_tokens,en_tokens,fin_mask,en_mask)
-        ## to not give it the last token, which i want it to predict.
-        probs = probs[...,:-1,:].reshape(-1,probs.shape[-1]) ## last dim is of size vocab_size, So now (batch x num_tokens), vocab_size tensor. (2-D) tensor
-        val_loss = self.loss(probs,fin_tokens[:,1:].reshape(-1)) ## this will now be batch_size x sequence_length long; (1-D) tensor
+        logits = self(fin_tokens, en_tokens, fin_mask, en_mask)
         
-        self.log("val_loss",val_loss,prog_bar=True,on_step=True,on_epoch=True)
-        # if batch_idx % self.logval_everyk == 0:
-        #     metrics = self.predict_step(batch)
-        #     self.log_dict(metrics,on_step=True,on_epoch=False)        
+        predict_logits = logits[..., :-1, :].reshape(-1, logits.shape[-1])
+        target_tokens = en_tokens[:, 1:].reshape(-1)
+        
+        val_loss = self.loss(predict_logits, target_tokens)
+        self.log("val_loss", val_loss, prog_bar=True, on_step=False, on_epoch=True)
+        
+        if batch_idx % self.logval_everyk == 0:
+            predicted_token_ids = torch.argmax(logits[..., :-1, :], dim=-1)
+            
+            pred_ids = predicted_token_ids[0]
+            target_ids = en_tokens[0, 1:]
+            
+            predicted_text = self.tokenizer.decode(pred_ids, skip_special_tokens=True)
+            ground_truth_text = self.tokenizer.decode(target_ids, skip_special_tokens=True)
+
+            print("\n" + "="*80)
+            print(f"SAMPLE PREDICTION @ BATCH {batch_idx}")
+            print(f"  GROUND TRUTH: {ground_truth_text}")
+            print(f"  PREDICTED:    {predicted_text}")
+            print("="*80 + "\n")
+
+        return val_loss
+
+    
     ## Start from token 2 onwards, as i want it to predict these tokens, and drop the last logit, as i dont care for the output given the entire sequence
         return val_loss
     def log_grad_norms(self):
