@@ -135,10 +135,16 @@ class CleanedEnFinnishDataset(Dataset):
         
         if (os.path.exists(os.path.join(archive_path, "en_tokens.pk")) and 
             os.path.exists(os.path.join(archive_path, "fi_tokens.pk"))):
-            with open(os.path.join(archive_path, "en_tokens.pk"), "rb") as f:
-                self.en_ids = pk.load(f)
-            with open(os.path.join(archive_path, "fi_tokens.pk"), "rb") as f:
-                self.fi_ids = pk.load(f)
+            # with open(os.path.join(archive_path, "en_tokens.pk"), "rb") as f:
+            #     self.en_ids = pk.load(f)
+            # with open(os.path.join(archive_path, "fi_tokens.pk"), "rb") as f:
+            #     self.fi_ids = pk.load(f)
+            with open(os.path.join(archive_path, "EUbookshop.en"), 'r') as fp:
+                en_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
+            with open(os.path.join(archive_path, "EUbookshop.fi"), 'r') as fp:
+                fi_lines = [sentence.strip() for sentence in fp.read().split('.') if sentence.strip()]
+
+
             # self.tokenizer = AutoTokenizer.from_pretrained(
             #     "Helsinki-NLP/opus-mt-en-fi"
             # )
